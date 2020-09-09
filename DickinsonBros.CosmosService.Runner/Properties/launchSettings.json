@@ -1,0 +1,10 @@
+﻿{
+  "profiles": {
+    "DEBUG": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "BUILD_CONFIGURATION": "DEBUG"
+      }
+    }
+  }
+}
