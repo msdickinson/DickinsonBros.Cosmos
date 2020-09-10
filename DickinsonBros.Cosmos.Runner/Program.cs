@@ -7,11 +7,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.IO;
 using System.Threading.Tasks;
-using DickinsonBros.CosmosService.Runner.Services;
-using DickinsonBros.CosmosService.Runner.Models;
-using DickinsonBros.CosmosService.Extensions;
+using DickinsonBros.Cosmos.Runner.Services;
+using DickinsonBros.Cosmos.Runner.Models;
+using DickinsonBros.Cosmos.Extensions;
 using Microsoft.Extensions.Options;
-using DickinsonBros.CosmosService.Models;
+using DickinsonBros.Cosmos.Models;
 using DickinsonBros.NoSQLService.Abstractions;
 using DickinsonBros.Stopwatch.Extensions;
 using DickinsonBros.Logger.Extensions;
@@ -21,7 +21,7 @@ using DickinsonBros.Telemetry.Extensions;
 using DickinsonBros.Telemetry.Models;
 using DickinsonBros.DateTime.Extensions;
 
-namespace DickinsonBros.CosmosService.Runner
+namespace DickinsonBros.Cosmos.Runner
 {
     class Program
     {

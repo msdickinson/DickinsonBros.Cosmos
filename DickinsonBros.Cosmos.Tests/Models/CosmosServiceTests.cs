@@ -1,4 +1,4 @@
-﻿using DickinsonBros.CosmosService.Models;
+﻿using DickinsonBros.Cosmos.Models;
 using DickinsonBros.DateTime.Abstractions;
 using DickinsonBros.Logger.Abstractions;
 using DickinsonBros.NoSQLService.Abstractions;
@@ -16,7 +16,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace DickinsonBros.CosmosService.Tests.Models
+namespace DickinsonBros.Cosmos.Tests.Models
 {
     public class SampleModel
     {
@@ -360,11 +360,11 @@ namespace DickinsonBros.CosmosService.Tests.Models
                     var uut = serviceProvider.GetRequiredService<INoSQLService>();
                     var uutConcrete = (CosmosService)uut;
 
-                    var id = "1";
+                    var _id = "1";
                     var key = "1";
 
                     //Act
-                    var observed = await uut.FetchAsync<SampleModel>(id, key);
+                    var observed = await uut.FetchAsync<SampleModel>(_id, key);
 
                     //Assert
                     containerMock
@@ -380,7 +380,7 @@ namespace DickinsonBros.CosmosService.Tests.Models
                         Times.Once
                     );
 
-                    Assert.AreEqual(id, idObserved);
+                    Assert.AreEqual(_id, idObserved);
                     Assert.AreEqual(new PartitionKey(key).ToString(), partitionKeyObserved.Value.ToString());
                 },
                serviceCollection => ConfigureServices(serviceCollection)

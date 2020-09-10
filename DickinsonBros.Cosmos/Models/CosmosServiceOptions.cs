@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
-namespace DickinsonBros.CosmosService.Models
+namespace DickinsonBros.Cosmos.Models
 {
     [ExcludeFromCodeCoverage]
     public class CosmosServiceOptions

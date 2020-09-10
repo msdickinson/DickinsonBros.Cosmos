@@ -1,4 +1,4 @@
-﻿using DickinsonBros.CosmosService.Models;
+﻿using DickinsonBros.Cosmos.Models;
 using DickinsonBros.NoSQLService.Abstractions;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
-namespace DickinsonBros.CosmosService.Extensions
+namespace DickinsonBros.Cosmos.Extensions
 {
     public static class IServiceCollectionExtensions
     {

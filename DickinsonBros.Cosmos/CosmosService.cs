@@ -1,4 +1,4 @@
-﻿using DickinsonBros.CosmosService.Models;
+﻿using DickinsonBros.Cosmos.Models;
 using DickinsonBros.DateTime.Abstractions;
 using DickinsonBros.Logger.Abstractions;
 using DickinsonBros.NoSQLService.Abstractions;
@@ -12,7 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace DickinsonBros.CosmosService
+namespace DickinsonBros.Cosmos
 {
     public class CosmosService : INoSQLService
     {
