@@ -113,3 +113,11 @@ sampleModelValue: {"key":"8f5c0bba-9c17-4069-a809-0d34fabf6868","id":"8f5c0bba-9
 fetchedSampleModel: {"key":"8f5c0bba-9c17-4069-a809-0d34fabf6868","id":"8f5c0bba-9c17-4069-a809-0d34fabf6868","coasterData":"7009d4fc-5987-42b7-bbdc-2ebb5d1721e7"}
 ```
 Note: coasterData is REDACTED via configuration in the Sample runner as its a large file and would overload logger.
+
+<h2>Telemetry</h2>
+
+![Alt text](https://raw.githubusercontent.com/msdickinson/DickinsonBros.CosmosService/master/Telemetry.PNG)
+
+<h2>Example Cosmos Item</h2>
+
+![Alt text](https://raw.githubusercontent.com/msdickinson/DickinsonBros.CosmosService/master/CosmosSampleItem.PNG)
