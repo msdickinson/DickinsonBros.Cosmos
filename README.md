@@ -1,7 +1,7 @@
 # DickinsonBros.CosmosService
 
-<a href="https://www.nuget.org/packages/DickinsonBros.CosmosService/">
-    <img src="https://img.shields.io/nuget/v/DickinsonBros.CosmosService">
+<a href="https://www.nuget.org/packages/DickinsonBros.Cosmos/">
+    <img src="https://img.shields.io/nuget/v/DickinsonBros.Cosmos">
 </a>
 
 A CosmosService service
@@ -11,12 +11,9 @@ Features
 * Captures Telemetry
 * Adds Logging
 
-<a href="https://dev.azure.com/marksamdickinson/DickinsonBros/_build?definitionScope=%5CDickinsonBros.CosmosService">Builds</a>
+<a href="https://dev.azure.com/marksamdickinson/DickinsonBros/_build?definitionScope=%5CDickinsonBros.Cosmos">Builds</a>
 
 <h2>Example Usage</h2>
-
-Note: Example below is based on Example Runner that contains a warper class on SQLService called DickinsonBrosSQLRunnerDBService. https://github.com/msdickinson/DickinsonBros.SQL/tree/develop/DickinsonBros.SQL.Runner
-
 
 ```C#
   var noSQLService = provider.GetRequiredService<INoSQLService>();
