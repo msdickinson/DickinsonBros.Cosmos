@@ -24,7 +24,7 @@ namespace DickinsonBros.CosmosService.Runner.Services
          
             configuration.Bind($"{nameof(CosmosServiceOptions)}", options);
 
-            options.ConnectionString = certificateEncryptionService.Decrypt(cosmosServiceOptions.ConnectionString);
+        options.ConnectionString = certificateEncryptionService.Decrypt(cosmosServiceOptions.ConnectionString);
             options.ContainerId = cosmosServiceOptions.ContainerId;
             options.DatabaseId = cosmosServiceOptions.DatabaseId;
             options.EndpointUri = cosmosServiceOptions.EndpointUri;
