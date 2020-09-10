@@ -1,10 +1,10 @@
-﻿using DickinsonBros.CosmosService.Extensions;
+﻿using DickinsonBros.Cosmos.Extensions;
 using DickinsonBros.NoSQLService.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Linq;
 
-namespace DickinsonBros.CosmosService.Tests.Extensions
+namespace DickinsonBros.Cosmos.Tests.Extensions
 {
     [TestClass]
     public class IServiceCollectionExtensionsTests

@@ -2,7 +2,7 @@
 using System;
 using System.Threading;
 
-namespace DickinsonBros.CosmosService.Runner.Services
+namespace DickinsonBros.Cosmos.Runner.Services
 {
     public class ApplicationLifetime : IApplicationLifetime, IDisposable
     {

@@ -1,4 +1,4 @@
-﻿namespace DickinsonBros.CosmosService.Runner.Models
+﻿namespace DickinsonBros.Cosmos.Runner.Models
 {
     public class SampleModel
     {

@@ -1,4 +1,4 @@
-﻿using DickinsonBros.CosmosService.Runner.Models;
+﻿using DickinsonBros.Cosmos.Runner.Models;
 using DickinsonBros.Encryption.Certificate.Abstractions;
 using DickinsonBros.Telemetry.Models;
 using Microsoft.Extensions.Configuration;
@@ -8,7 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace DickinsonBros.CosmosService.Runner.Services
+namespace DickinsonBros.Cosmos.Runner.Services
 {
     public class TelemetryServiceOptionsConfigurator : IConfigureOptions<TelemetryServiceOptions>
     {

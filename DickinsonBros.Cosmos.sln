@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30204.135
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DickinsonBros.CosmosService", "DickinsonBros.CosmosService\DickinsonBros.CosmosService.csproj", "{FEF6466B-4B48-42DE-8141-BA48FE730362}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DickinsonBros.Cosmos", "DickinsonBros.Cosmos\DickinsonBros.Cosmos.csproj", "{FEF6466B-4B48-42DE-8141-BA48FE730362}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "1 Library", "1 Library", "{C1120677-5428-4CDB-AEBF-E1C731F993A4}"
 EndProject
@@ -12,14 +12,14 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "9 Misc", "9 Misc", "{3DF24EFE-51EF-44A2-B91B-02CD2DC5238D}"
 	ProjectSection(SolutionItems) = preProject
 		Scripts\CreateNugetPackageCI.ps1 = Scripts\CreateNugetPackageCI.ps1
-		DickinsonBros.CosmosService.runsettings = DickinsonBros.CosmosService.runsettings
+		DickinsonBros.Cosmos.runsettings = DickinsonBros.Cosmos.runsettings
 		Scripts\Publish.yml = Scripts\Publish.yml
 		Scripts\Test.yml = Scripts\Test.yml
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DickinsonBros.CosmosService.Tests", "DickinsonBros.CosmosService.Tests\DickinsonBros.CosmosService.Tests.csproj", "{24765A96-AB79-4F3B-B4BB-C45F8422C809}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DickinsonBros.Cosmos.Tests", "DickinsonBros.Cosmos.Tests\DickinsonBros.Cosmos.Tests.csproj", "{24765A96-AB79-4F3B-B4BB-C45F8422C809}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DickinsonBros.CosmosService.Runner", "DickinsonBros.CosmosService.Runner\DickinsonBros.CosmosService.Runner.csproj", "{1921F116-C7D4-4F1D-A650-E1E6B61097AF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DickinsonBros.Cosmos.Runner", "DickinsonBros.Cosmos.Runner\DickinsonBros.Cosmos.Runner.csproj", "{1921F116-C7D4-4F1D-A650-E1E6B61097AF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

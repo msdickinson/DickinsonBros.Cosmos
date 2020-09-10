@@ -6,10 +6,10 @@
     <Version>1.0.0</Version>
     <Authors>Mark Dickinson</Authors>
     <Company>DickinsonBros</Company>
-    <RepositoryUrl>https://github.com/msdickinson/DickinsonBros.CosmosService.git</RepositoryUrl>
+    <RepositoryUrl>https://github.com/msdickinson/DickinsonBros.Cosmos.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <Description>
-      A CosmosService service
+      A Cosmos service
 
       Features
       * DeleteAsync, FetchAsync, InsertAsync, and UpsertAsync Methods 

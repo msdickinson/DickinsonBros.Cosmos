@@ -1,11 +1,11 @@
-﻿using DickinsonBros.CosmosService.Models;
-using DickinsonBros.CosmosService.Runner.Models;
+﻿using DickinsonBros.Cosmos.Models;
+using DickinsonBros.Cosmos.Runner.Models;
 using DickinsonBros.Encryption.Certificate.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace DickinsonBros.CosmosService.Runner.Services
+namespace DickinsonBros.Cosmos.Runner.Services
 {
     public class CosmosServiceOptionsConfigurator : IConfigureOptions<CosmosServiceOptions>
     {
