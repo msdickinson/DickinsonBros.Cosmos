@@ -1,7 +1,6 @@
 ﻿using System;
 using DickinsonBros.Encryption.Certificate.Extensions;
 using DickinsonBros.Encryption.Certificate.Models;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -20,6 +19,7 @@ using DickinsonBros.Redactor.Models;
 using DickinsonBros.Telemetry.Extensions;
 using DickinsonBros.Telemetry.Models;
 using DickinsonBros.DateTime.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace DickinsonBros.Cosmos.Runner
 {
@@ -34,14 +34,13 @@ namespace DickinsonBros.Cosmos.Runner
         {
             try
             {
-                using var applicationLifetime = new ApplicationLifetime();
                 var services = InitializeDependencyInjection();
-                ConfigureServices(services, applicationLifetime);
+                ConfigureServices(services);
 
                 using (var provider = services.BuildServiceProvider())
                 {
                     var noSQLService = provider.GetRequiredService<INoSQLService>();
-
+                    var hostApplicationLifetime = provider.GetRequiredService<IHostApplicationLifetime>();
                     var guid = Guid.NewGuid().ToString();
                     var value = Guid.NewGuid().ToString();
                     var sampleModelValue = new SampleModel
@@ -61,8 +60,10 @@ $@"
 sampleModelValue: {System.Text.Json.JsonSerializer.Serialize(sampleModelValue)}
 fetchedSampleModel: {System.Text.Json.JsonSerializer.Serialize(fetchedSampleModel)}
 ");
+
+
+                    hostApplicationLifetime.StopApplication();
                 }
-                applicationLifetime.StopApplication();
                 await Task.CompletedTask.ConfigureAwait(false);
             }
             catch (Exception e)
@@ -76,7 +77,7 @@ fetchedSampleModel: {System.Text.Json.JsonSerializer.Serialize(fetchedSampleMode
             }
         }
 
-        private void ConfigureServices(IServiceCollection services, ApplicationLifetime applicationLifetime)
+        private void ConfigureServices(IServiceCollection services)
         {
             services.AddOptions();
             services.AddLogging(config =>
@@ -88,32 +89,15 @@ fetchedSampleModel: {System.Text.Json.JsonSerializer.Serialize(fetchedSampleMode
                     config.AddConsole();
                 }
             });
-            services.AddSingleton<IApplicationLifetime>(applicationLifetime);
 
-            //Add DateTime Service
+            services.AddSingleton<IHostApplicationLifetime, HostApplicationLifetime>();
             services.AddDateTimeService();
-
-            //Add Stopwatch Service
             services.AddStopwatchService();
-
-            //Add Logging Service
             services.AddLoggingService();
-
-            //Add Redactor Service
             services.AddRedactorService();
-            services.Configure<RedactorServiceOptions>(_configuration.GetSection(nameof(RedactorServiceOptions)));
-
-            //Add Certificate Encryption Service
-            services.AddCertificateEncryptionService<CertificateEncryptionServiceOptions>();
-            services.Configure<CertificateEncryptionServiceOptions<RunnerCertificateEncryptionServiceOptions>>(_configuration.GetSection(nameof(RunnerCertificateEncryptionServiceOptions)));
-
-            //Add Telemetry Service
+            services.AddConfigurationEncryptionService();
             services.AddTelemetryService();
-            services.AddSingleton<IConfigureOptions<TelemetryServiceOptions>, TelemetryServiceOptionsConfigurator>();
-
-            //Add KeyValue Store
             services.AddCosmosService();
-            services.AddSingleton<IConfigureOptions<CosmosServiceOptions>, CosmosServiceOptionsConfigurator>();
         }
 
       
