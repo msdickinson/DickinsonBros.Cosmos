@@ -1,7 +1,7 @@
 ﻿using DickinsonBros.Cosmos.Models;
 using DickinsonBros.DateTime.Abstractions;
 using DickinsonBros.Logger.Abstractions;
-using DickinsonBros.NoSQLService.Abstractions;
+using DickinsonBros.NoSQL.Abstractions;
 using DickinsonBros.Stopwatch.Abstractions;
 using DickinsonBros.Telemetry.Abstractions;
 using DickinsonBros.Telemetry.Abstractions.Models;

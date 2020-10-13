@@ -1,7 +1,7 @@
 ﻿using DickinsonBros.Cosmos.Configurators;
 using DickinsonBros.Cosmos.Extensions;
 using DickinsonBros.Cosmos.Models;
-using DickinsonBros.NoSQLService.Abstractions;
+using DickinsonBros.NoSQL.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;

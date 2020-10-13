@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="DickinsonBros.Test" Version="1.1.0" />
-    <PackageReference Include="DickinsonBros.NoSQLService.Abstractions" Version="2.0.0" />
+    <PackageReference Include="DickinsonBros.NoSQL.Abstractions" Version="1.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="3.1.8" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.7.1" />
     <PackageReference Include="MSTest.TestAdapter" Version="2.1.2" />
