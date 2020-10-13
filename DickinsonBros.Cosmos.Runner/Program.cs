@@ -1,25 +1,20 @@
-﻿using System;
+﻿using DickinsonBros.Cosmos.Extensions;
+using DickinsonBros.Cosmos.Runner.Models;
+using DickinsonBros.Cosmos.Runner.Services;
+using DickinsonBros.DateTime.Extensions;
 using DickinsonBros.Encryption.Certificate.Extensions;
-using DickinsonBros.Encryption.Certificate.Models;
+using DickinsonBros.Logger.Extensions;
+using DickinsonBros.NoSQL.Abstractions;
+using DickinsonBros.Redactor.Extensions;
+using DickinsonBros.Stopwatch.Extensions;
+using DickinsonBros.Telemetry.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System;
 using System.IO;
 using System.Threading.Tasks;
-using DickinsonBros.Cosmos.Runner.Services;
-using DickinsonBros.Cosmos.Runner.Models;
-using DickinsonBros.Cosmos.Extensions;
-using Microsoft.Extensions.Options;
-using DickinsonBros.Cosmos.Models;
-using DickinsonBros.NoSQLService.Abstractions;
-using DickinsonBros.Stopwatch.Extensions;
-using DickinsonBros.Logger.Extensions;
-using DickinsonBros.Redactor.Extensions;
-using DickinsonBros.Redactor.Models;
-using DickinsonBros.Telemetry.Extensions;
-using DickinsonBros.Telemetry.Models;
-using DickinsonBros.DateTime.Extensions;
-using Microsoft.Extensions.Hosting;
 
 namespace DickinsonBros.Cosmos.Runner
 {
