@@ -108,8 +108,11 @@ Note: coasterData is REDACTED via configuration in the Sample runner as its a la
 
 <h2>Telemetry</h2>
 
-![Alt text](https://raw.githubusercontent.com/msdickinson/DickinsonBros.CosmosService/master/Telemetry.PNG)
+![Alt text](https://raw.githubusercontent.com/msdickinson/DickinsonBros.Cosmos/master/Telemetry.PNG)
 
 <h2>Example Cosmos Item</h2>
 
-![Alt text](https://raw.githubusercontent.com/msdickinson/DickinsonBros.CosmosService/master/CosmosSampleItem.PNG)
+![Alt text](https://raw.githubusercontent.com/msdickinson/DickinsonBros.Cosmos/master/CosmosSampleItem.PNG)
+
+[Sample Runner](https://github.com/msdickinson/DickinsonBros.Cosmos/tree/master/DickinsonBros.Cosmos.Runner)
+
