@@ -5,9 +5,11 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DickinsonBros.Cosmos.Extensions
 {
+    [ExcludeFromCodeCoverage]
     public static class IServiceCollectionExtensions
     {
         public static IServiceCollection AddCosmosService(this IServiceCollection serviceCollection)
