@@ -15,6 +15,7 @@ variables:
   solution: '**/*.sln'
   buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
+  NugetFeed: 'https://api.nuget.org/v3/index.json'
 
 steps:
 - task: NuGetToolInstaller@1
@@ -22,6 +23,23 @@ steps:
 - task: NuGetCommand@2
   inputs:
     restoreSolution: '$(solution)'
+
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'build'
+    projects: '**/*.csproj'
+    configuration: '$(buildConfiguration)'
+
+- task: VSTest@2
+  inputs:
+    testSelector: 'testAssemblies'
+    testAssemblyVer2: |
+      **\*Tests*.dll
+      !**\*TestAdapter.dll
+      !**\obj\**
+    searchFolder: '$(System.DefaultWorkingDirectory)'
+    codeCoverageEnabled: true
+    runSettingsFile: 'DickinsonBros.Cosmos.runsettings'
 
 - task: DotNetCoreCLI@2
   inputs:
