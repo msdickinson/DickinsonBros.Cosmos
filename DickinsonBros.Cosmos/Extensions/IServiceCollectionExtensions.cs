@@ -14,13 +14,13 @@ namespace DickinsonBros.Cosmos.Extensions
     {
         public static IServiceCollection AddCosmosService(this IServiceCollection serviceCollection)
         {
-            serviceCollection.TryAddSingleton<INoSQLService, CosmosService>();
+            serviceCollection.TryAddSingleton<ICosmosService, CosmosService>();
             serviceCollection.TryAddSingleton<IConfigureOptions<CosmosServiceOptions>, CosmosServiceOptionsConfigurator>();
 
             serviceCollection.AddSingleton((provider) =>
             {
                 var cosmosServiceOptions = provider.GetService<IOptions<CosmosServiceOptions>>().Value;
-                return new CosmosClient(cosmosServiceOptions.ConnectionString);
+                return new CosmosClient(cosmosServiceOptions.ConnectionString, new CosmosClientOptions { SerializerOptions = new CosmosSerializationOptions { PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase } });
             });
 
             return serviceCollection;

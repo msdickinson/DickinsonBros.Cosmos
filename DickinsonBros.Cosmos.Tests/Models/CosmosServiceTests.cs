@@ -3939,7 +3939,7 @@ namespace DickinsonBros.Cosmos.Tests.Models
 
         private IServiceCollection ConfigureServices(IServiceCollection serviceCollection)
         {
-            serviceCollection.AddSingleton<INoSQLService, CosmosService>();
+            serviceCollection.AddSingleton<ICosmosService, CosmosService>();
             serviceCollection.AddSingleton(Mock.Of<Container>());
             serviceCollection.AddSingleton(Mock.Of<CosmosClient>());
             serviceCollection.AddSingleton(Mock.Of<ITelemetryService>());
