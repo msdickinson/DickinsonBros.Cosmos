@@ -45,9 +45,9 @@ namespace DickinsonBros.Cosmos.Runner
                     };
 
                     var result = await noSQLService.InsertAsync(sampleModelValue.Key, sampleModelValue).ConfigureAwait(false);
-                    var resultTWo = await noSQLService.UpsertAsync(sampleModelValue.Key, result.Resource._etag, result).ConfigureAwait(false);
-                    var resultThree = await noSQLService.UpsertAsync(sampleModelValue.Key, result.Resource._etag, resultTWo).ConfigureAwait(false);
-                    await noSQLService.UpsertAsync(sampleModelValue.Key, result.Resource._etag, result).ConfigureAwait(false);
+                    var resultTwo = await noSQLService.UpsertAsync(sampleModelValue.Key, result.Resource._etag, result.Resource).ConfigureAwait(false);
+                    var resultThree = await noSQLService.UpsertAsync(sampleModelValue.Key, resultTwo.Resource._etag, resultTwo.Resource).ConfigureAwait(false);
+                    await noSQLService.UpsertAsync(sampleModelValue.Key, resultThree.Resource._etag, resultThree.Resource).ConfigureAwait(false);
                     var fetchedSampleModel = await noSQLService.FetchAsync<SampleModel>(sampleModelValue.Id, sampleModelValue.Key).ConfigureAwait(false);
                     await noSQLService.DeleteAsync(sampleModelValue.Id, sampleModelValue.Key).ConfigureAwait(false);
 

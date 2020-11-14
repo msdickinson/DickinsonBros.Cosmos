@@ -198,6 +198,21 @@ namespace DickinsonBros.Cosmos
             }
             catch(CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
             {
+                stopwatchService.Stop();
+                telemetry.ElapsedMilliseconds = (int)stopwatchService.ElapsedMilliseconds;
+                telemetry.TelemetryState = TelemetryState.BadRequest;
+
+                _logger.LogInformationRedacted
+                (
+                    $"PreconditionFailed {methodIdentifier}",
+                    new Dictionary<string, object>
+                    {
+                        { nameof(key), key },
+                        { nameof(value), value },
+                        { nameof(stopwatchService.ElapsedMilliseconds), telemetry.ElapsedMilliseconds }
+                    }
+                );
+
                 throw;
             }
             catch (Exception exception)

@@ -1,6 +1,5 @@
 ﻿using DickinsonBros.Cosmos.Configurators;
 using DickinsonBros.Cosmos.Models;
-using DickinsonBros.NoSQL.Abstractions;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

@@ -1,7 +1,6 @@
 ﻿using DickinsonBros.Cosmos.Configurators;
 using DickinsonBros.Cosmos.Extensions;
 using DickinsonBros.Cosmos.Models;
-using DickinsonBros.NoSQL.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -23,7 +22,7 @@ namespace DickinsonBros.Cosmos.Tests.Extensions
 
             // Assert
 
-            Assert.IsTrue(serviceCollection.Any(serviceDefinition => serviceDefinition.ServiceType == typeof(INoSQLService) &&
+            Assert.IsTrue(serviceCollection.Any(serviceDefinition => serviceDefinition.ServiceType == typeof(ICosmosService) &&
                                            serviceDefinition.ImplementationType == typeof(CosmosService) &&
                                            serviceDefinition.Lifetime == ServiceLifetime.Singleton));
 
