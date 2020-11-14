@@ -1,8 +1,5 @@
 # DickinsonBros.CosmosService
-
-<a href="https://www.nuget.org/packages/DickinsonBros.Cosmos/">
-    <img src="https://img.shields.io/nuget/v/DickinsonBros.Cosmos">
-</a>
+<a href="https://dev.azure.com/marksamdickinson/dickinsonbros/_build/latest?definitionId=72&amp;branchName=master"> <img alt="Azure DevOps builds (branch)" src="https://img.shields.io/azure-devops/build/marksamdickinson/DickinsonBros/72/master"> </a> <a href="https://dev.azure.com/marksamdickinson/dickinsonbros/_build/latest?definitionId=72&amp;branchName=master"> <img alt="Azure DevOps coverage (branch)" src="https://img.shields.io/azure-devops/coverage/marksamdickinson/dickinsonbros/72/master"> </a><a href="https://dev.azure.com/marksamdickinson/DickinsonBros/_release?_a=releases&view=mine&definitionId=34"> <img alt="Azure DevOps releases" src="https://img.shields.io/azure-devops/release/marksamdickinson/b5a46403-83bb-4d18-987f-81b0483ef43e/34/35"> </a><a href="https://www.nuget.org/packages/DickinsonBros.Cosmos/"><img src="https://img.shields.io/nuget/v/DickinsonBros.Cosmos"></a>
 
 A CosmosService service
 
@@ -10,8 +7,6 @@ Features
 * DeleteAsync, FetchAsync, InsertAsync, and UpsertAsync Methods 
 * Captures Telemetry
 * Adds Logging
-
-<a href="https://dev.azure.com/marksamdickinson/DickinsonBros/_build?definitionScope=%5CDickinsonBros.Cosmos">Builds</a>
 
 <h2>Example Usage</h2>
 
