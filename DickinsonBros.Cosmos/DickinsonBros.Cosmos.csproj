@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <Configurations>Debug;Release</Configurations>
-    <VersionPrefix>2.0.1</VersionPrefix>
+    <VersionPrefix>3.0.0</VersionPrefix>
     <Authors>Mark Dickinson</Authors>
     <Company>DickinsonBros</Company>
     <RepositoryUrl>https://github.com/msdickinson/DickinsonBros.Cosmos.git</RepositoryUrl>
@@ -23,14 +23,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="DickinsonBros.DateTime.Abstractions" Version="[2.0.0,3.0.0)" />
+    <PackageReference Include="DickinsonBros.DateTime.Abstractions" Version="[2.0.1,3.0.0)" />
     <PackageReference Include="DickinsonBros.Encryption.Certificate.Abstractions" Version="[4.1.0,5.0.0)" />
-    <PackageReference Include="DickinsonBros.Logger.Abstractions" Version="[2.0.0,3.0.0)" />
-    <PackageReference Include="DickinsonBros.NoSQL.Abstractions" Version="1.0.0" />
-    <PackageReference Include="DickinsonBros.Redactor.Abstractions" Version="[2.0.0,3.0.0)" />
-    <PackageReference Include="DickinsonBros.Stopwatch.Abstractions" Version="[2.0.0,3.0.0)" />
+    <PackageReference Include="DickinsonBros.Logger.Abstractions" Version="[2.0.1,3.0.0)" />
+    <PackageReference Include="DickinsonBros.Redactor.Abstractions" Version="[2.0.1,3.0.0)" />
+    <PackageReference Include="DickinsonBros.Stopwatch.Abstractions" Version="[2.0.1,3.0.0)" />
     <PackageReference Include="DickinsonBros.Telemetry.Abstractions" Version="[5.1.0,6.0.0)" />
-    <PackageReference Include="Microsoft.Azure.Cosmos" Version="[3.13.0,4.0.0)" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="[3.14.0,4.0.0)" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="[3.1.8,4.0.0)" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="[3.1.8,4.0.0)" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="[3.1.8,4.0.0)" />

@@ -1,7 +1,6 @@
 ﻿using DickinsonBros.Cosmos.Models;
 using DickinsonBros.DateTime.Abstractions;
 using DickinsonBros.Logger.Abstractions;
-using DickinsonBros.NoSQL.Abstractions;
 using DickinsonBros.Stopwatch.Abstractions;
 using DickinsonBros.Telemetry.Abstractions;
 using DickinsonBros.Telemetry.Abstractions.Models;
@@ -14,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace DickinsonBros.Cosmos
 {
-    public class CosmosService : INoSQLService
+    public class CosmosService : ICosmosService
     {
         internal readonly IServiceProvider _serviceProvider;
         internal readonly ILoggingService<CosmosService> _logger;
@@ -42,7 +41,7 @@ namespace DickinsonBros.Cosmos
             _dateTimeService = dateTimeService;
         }
 
-        public async Task<T> FetchAsync<T>(string id, string key)
+        public async Task<ItemResponse<T>> FetchAsync<T>(string id, string key)
         {
             var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
             var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
@@ -59,6 +58,7 @@ namespace DickinsonBros.Cosmos
                 stopwatchService.Start();
                 var result =  await _cosmosContainer.ReadItemAsync<T>(id, new PartitionKey(key)).ConfigureAwait(false);
                 stopwatchService.Stop();
+
                 telemetry.ElapsedMilliseconds = (int)stopwatchService.ElapsedMilliseconds;
                 telemetry.TelemetryState = TelemetryState.Successful;
 
@@ -74,7 +74,7 @@ namespace DickinsonBros.Cosmos
                     }
                 );
 
-                return result.Resource;
+                return result;
             }
             catch(Exception exception)
             {
@@ -102,7 +102,7 @@ namespace DickinsonBros.Cosmos
             }
         }
 
-        public async Task InsertAsync<T>(string key, T value)
+        public async Task<ItemResponse<T>> InsertAsync<T>(string key, T value)
         {
             var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.InsertAsync)}";
             var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
@@ -117,7 +117,8 @@ namespace DickinsonBros.Cosmos
             try
             {
                 stopwatchService.Start();
-                await _cosmosContainer.CreateItemAsync<T>(value, new PartitionKey(key)).ConfigureAwait(false);
+                var itemResponse = await _cosmosContainer.CreateItemAsync<T>(value, new PartitionKey(key)).ConfigureAwait(false);
+
                 stopwatchService.Stop();
                 telemetry.ElapsedMilliseconds = (int)stopwatchService.ElapsedMilliseconds;
                 telemetry.TelemetryState = TelemetryState.Successful;
@@ -132,6 +133,8 @@ namespace DickinsonBros.Cosmos
                         { nameof(stopwatchService.ElapsedMilliseconds), telemetry.ElapsedMilliseconds }
                     }
                 );
+
+                return itemResponse;
             }
             catch (Exception exception)
             {
@@ -159,7 +162,7 @@ namespace DickinsonBros.Cosmos
             }
         }
 
-        public async Task UpsertAsync<T>(string key, T value)
+        public async Task<ItemResponse<T>> UpsertAsync<T>(string key, string eTag, T value)
         {
             var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.UpsertAsync)}";
             var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
@@ -174,7 +177,7 @@ namespace DickinsonBros.Cosmos
             try
             {
                 stopwatchService.Start();
-                await _cosmosContainer.UpsertItemAsync<T>(value, new PartitionKey(key)).ConfigureAwait(false);
+                var itemResponse = await _cosmosContainer.UpsertItemAsync<T>(value, new PartitionKey(key), new ItemRequestOptions { IfMatchEtag = eTag }).ConfigureAwait(false);
                 stopwatchService.Stop();
 
                 telemetry.ElapsedMilliseconds = (int)stopwatchService.ElapsedMilliseconds;
@@ -190,6 +193,27 @@ namespace DickinsonBros.Cosmos
                         { nameof(stopwatchService.ElapsedMilliseconds), telemetry.ElapsedMilliseconds }
                     }
                 );
+
+                return itemResponse;
+            }
+            catch(CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
+            {
+                stopwatchService.Stop();
+                telemetry.ElapsedMilliseconds = (int)stopwatchService.ElapsedMilliseconds;
+                telemetry.TelemetryState = TelemetryState.BadRequest;
+
+                _logger.LogInformationRedacted
+                (
+                    $"PreconditionFailed {methodIdentifier}",
+                    new Dictionary<string, object>
+                    {
+                        { nameof(key), key },
+                        { nameof(value), value },
+                        { nameof(stopwatchService.ElapsedMilliseconds), telemetry.ElapsedMilliseconds }
+                    }
+                );
+
+                throw;
             }
             catch (Exception exception)
             {
@@ -218,7 +242,7 @@ namespace DickinsonBros.Cosmos
 
         }
 
-        public async Task DeleteAsync(string id, string key)
+        public async Task<ItemResponse<object>> DeleteAsync(string id, string key)
         {
             var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.DeleteAsync)}";
             var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
@@ -233,7 +257,7 @@ namespace DickinsonBros.Cosmos
             try
             {
                 stopwatchService.Start();
-                await _cosmosContainer.DeleteItemAsync<object>(id, new PartitionKey(key)).ConfigureAwait(false);
+                var response = await _cosmosContainer.DeleteItemAsync<object>(id, new PartitionKey(key)).ConfigureAwait(false);
                 stopwatchService.Stop();
                 telemetry.ElapsedMilliseconds = (int)stopwatchService.ElapsedMilliseconds;
                 telemetry.TelemetryState = TelemetryState.Successful;
@@ -248,6 +272,8 @@ namespace DickinsonBros.Cosmos
                         { nameof(stopwatchService.ElapsedMilliseconds), telemetry.ElapsedMilliseconds }
                     }
                 );
+
+                return response;
             }
             catch (Exception exception)
             {
@@ -273,8 +299,6 @@ namespace DickinsonBros.Cosmos
             {
                 _telemetryService.Insert(telemetry);
             }
-
-
         }
 
     }

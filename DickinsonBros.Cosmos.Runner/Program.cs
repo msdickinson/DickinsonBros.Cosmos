@@ -4,7 +4,6 @@ using DickinsonBros.Cosmos.Runner.Services;
 using DickinsonBros.DateTime.Extensions;
 using DickinsonBros.Encryption.Certificate.Extensions;
 using DickinsonBros.Logger.Extensions;
-using DickinsonBros.NoSQL.Abstractions;
 using DickinsonBros.Redactor.Extensions;
 using DickinsonBros.Stopwatch.Extensions;
 using DickinsonBros.Telemetry.Extensions;
@@ -34,28 +33,29 @@ namespace DickinsonBros.Cosmos.Runner
 
                 using (var provider = services.BuildServiceProvider())
                 {
-                    var noSQLService = provider.GetRequiredService<INoSQLService>();
+                    var noSQLService = provider.GetRequiredService<ICosmosService>();
                     var hostApplicationLifetime = provider.GetRequiredService<IHostApplicationLifetime>();
                     var guid = Guid.NewGuid().ToString();
                     var value = Guid.NewGuid().ToString();
                     var sampleModelValue = new SampleModel
                     {
-                        id = guid,
-                        key = guid,
-                        coasterData = value
+                        Id = guid,
+                        Key = guid,
+                        CoasterData = value
                     };
 
-                    await noSQLService.InsertAsync(sampleModelValue.key, sampleModelValue).ConfigureAwait(false);
-                    await noSQLService.UpsertAsync(sampleModelValue.key, sampleModelValue).ConfigureAwait(false);
-                    var fetchedSampleModel = await noSQLService.FetchAsync<SampleModel>(sampleModelValue.id, sampleModelValue.key).ConfigureAwait(false);
-                    await noSQLService.DeleteAsync(sampleModelValue.id, sampleModelValue.key).ConfigureAwait(false);
+                    var result = await noSQLService.InsertAsync(sampleModelValue.Key, sampleModelValue).ConfigureAwait(false);
+                    var resultTwo = await noSQLService.UpsertAsync(sampleModelValue.Key, result.Resource._etag, result.Resource).ConfigureAwait(false);
+                    var resultThree = await noSQLService.UpsertAsync(sampleModelValue.Key, resultTwo.Resource._etag, resultTwo.Resource).ConfigureAwait(false);
+                    await noSQLService.UpsertAsync(sampleModelValue.Key, resultThree.Resource._etag, resultThree.Resource).ConfigureAwait(false);
+                    var fetchedSampleModel = await noSQLService.FetchAsync<SampleModel>(sampleModelValue.Id, sampleModelValue.Key).ConfigureAwait(false);
+                    await noSQLService.DeleteAsync(sampleModelValue.Id, sampleModelValue.Key).ConfigureAwait(false);
 
                     Console.WriteLine(
 $@"
 sampleModelValue: {System.Text.Json.JsonSerializer.Serialize(sampleModelValue)}
 fetchedSampleModel: {System.Text.Json.JsonSerializer.Serialize(fetchedSampleModel)}
 ");
-
 
                     hostApplicationLifetime.StopApplication();
                 }
