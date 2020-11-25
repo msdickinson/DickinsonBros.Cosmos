@@ -1,4 +1,4 @@
-﻿using DickinsonBros.Cosmos.Extensions;
+using DickinsonBros.Cosmos.Extensions;
 using DickinsonBros.Cosmos.Runner.Models;
 using DickinsonBros.Cosmos.Runner.Services;
 using DickinsonBros.DateTime.Extensions;
@@ -107,11 +107,6 @@ fetchedSampleModel: {System.Text.Json.JsonSerializer.Serialize(fetchedSampleMode
             services.AddTelemetryService();
             services.AddCosmosService();
         }
-
-      
- 
-        //internal readonly CosmosClient _cosmosClient;
-        //internal readonly Container _cosmosContainer;
 
         IServiceCollection InitializeDependencyInjection()
         {
