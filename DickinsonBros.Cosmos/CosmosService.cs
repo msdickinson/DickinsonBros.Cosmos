@@ -41,6 +41,81 @@ namespace DickinsonBros.Cosmos
             _dateTimeService = dateTimeService;
         }
 
+        public async Task<IEnumerable<T>> QueryAsync<T>(QueryDefinition queryDefinition, string key, QueryRequestOptions queryRequestOptions)
+        {
+            var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
+            var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
+
+            var telemetry = new TelemetryData
+            {
+                Name = methodIdentifier,
+                DateTime = _dateTimeService.GetDateTimeUTC(),
+                TelemetryType = TelemetryType.NoSQL
+            };
+
+            try
+            {
+                stopwatchService.Start();
+
+                var items = new List<T>();
+                using (FeedIterator<T> feedIterator = _cosmosContainer.GetItemQueryIterator<T>(queryDefinition, null, queryRequestOptions))
+                {
+                    while (feedIterator.HasMoreResults)
+                    {
+                        var response = await feedIterator.ReadNextAsync();
+                        foreach (var item in response)
+                        {
+                            items.Add(item);
+                        }
+                    }
+                };
+                stopwatchService.Stop();
+
+                telemetry.ElapsedMilliseconds = (int)stopwatchService.ElapsedMilliseconds;
+                telemetry.TelemetryState = TelemetryState.Successful;
+
+                _logger.LogInformationRedacted
+                (
+                    methodIdentifier,
+                    new Dictionary<string, object>
+                    {
+                        { nameof(queryDefinition), queryDefinition },
+                        { nameof(key), key },
+                        { nameof(queryRequestOptions), queryRequestOptions },
+                        { nameof(items), items },
+                        { nameof(stopwatchService.ElapsedMilliseconds), telemetry.ElapsedMilliseconds }
+                    }
+                );
+
+                return items;
+            }
+            catch (Exception exception)
+            {
+                stopwatchService.Stop();
+                telemetry.ElapsedMilliseconds = (int)stopwatchService.ElapsedMilliseconds;
+                telemetry.TelemetryState = TelemetryState.Failed;
+
+                _logger.LogErrorRedacted
+                (
+                    $"Unhandled exception {methodIdentifier}",
+                    exception,
+                    new Dictionary<string, object>
+                    {
+                        { nameof(queryDefinition), queryDefinition },
+                        { nameof(key), key },
+                        { nameof(queryRequestOptions), queryRequestOptions },
+                        { nameof(stopwatchService.ElapsedMilliseconds), telemetry.ElapsedMilliseconds }
+                    }
+                );
+
+                throw;
+            }
+            finally
+            {
+                _telemetryService.Insert(telemetry);
+            }
+        }
+
         public async Task<ItemResponse<T>> FetchAsync<T>(string id, string key)
         {
             var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
