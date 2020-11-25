@@ -1,4 +1,4 @@
-﻿using DickinsonBros.Cosmos.Extensions;
+using DickinsonBros.Cosmos.Extensions;
 using DickinsonBros.Cosmos.Runner.Models;
 using DickinsonBros.Cosmos.Runner.Services;
 using DickinsonBros.DateTime.Extensions;
@@ -7,11 +7,13 @@ using DickinsonBros.Logger.Extensions;
 using DickinsonBros.Redactor.Extensions;
 using DickinsonBros.Stopwatch.Extensions;
 using DickinsonBros.Telemetry.Extensions;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -37,17 +39,28 @@ namespace DickinsonBros.Cosmos.Runner
                     var hostApplicationLifetime = provider.GetRequiredService<IHostApplicationLifetime>();
                     var guid = Guid.NewGuid().ToString();
                     var value = Guid.NewGuid().ToString();
+                    var key = "SampleCosmosRunner";
                     var sampleModelValue = new SampleModel
                     {
                         Id = guid,
-                        Key = guid,
+                        Key = key,
                         CoasterData = value
                     };
 
                     var result = await noSQLService.InsertAsync(sampleModelValue.Key, sampleModelValue).ConfigureAwait(false);
                     var resultTwo = await noSQLService.UpsertAsync(sampleModelValue.Key, result.Resource._etag, result.Resource).ConfigureAwait(false);
                     var resultThree = await noSQLService.UpsertAsync(sampleModelValue.Key, resultTwo.Resource._etag, resultTwo.Resource).ConfigureAwait(false);
-                    await noSQLService.UpsertAsync(sampleModelValue.Key, resultThree.Resource._etag, resultThree.Resource).ConfigureAwait(false);
+
+                    var fetchedQuerySampleModel = await noSQLService.QueryAsync<SampleModel>
+                    (
+                        new QueryDefinition("SELECT * FROM coaster"),
+                        sampleModelValue.Key,
+                        new Microsoft.Azure.Cosmos.QueryRequestOptions {
+                            PartitionKey = new PartitionKey(sampleModelValue.Key),
+                            MaxItemCount = 100
+                        }
+                    ).ConfigureAwait(false);
+
                     var fetchedSampleModel = await noSQLService.FetchAsync<SampleModel>(sampleModelValue.Id, sampleModelValue.Key).ConfigureAwait(false);
                     await noSQLService.DeleteAsync(sampleModelValue.Id, sampleModelValue.Key).ConfigureAwait(false);
 
@@ -94,11 +107,6 @@ fetchedSampleModel: {System.Text.Json.JsonSerializer.Serialize(fetchedSampleMode
             services.AddTelemetryService();
             services.AddCosmosService();
         }
-
-      
- 
-        //internal readonly CosmosClient _cosmosClient;
-        //internal readonly Container _cosmosContainer;
 
         IServiceCollection InitializeDependencyInjection()
         {
