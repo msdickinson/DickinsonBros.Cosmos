@@ -13,10 +13,11 @@ using System.Threading.Tasks;
 
 namespace DickinsonBros.Cosmos
 {
-    public class CosmosService : ICosmosService
+    public class CosmosService<U> : ICosmosService<U>
+    where U : CosmosServiceOptions, new()
     {
         internal readonly IServiceProvider _serviceProvider;
-        internal readonly ILoggingService<CosmosService> _logger;
+        internal readonly ILoggingService<CosmosService<U>> _logger;
         internal readonly ITelemetryService _telemetryService;
         internal readonly CosmosClient _cosmosClient;
         internal readonly Container _cosmosContainer;
@@ -24,16 +25,16 @@ namespace DickinsonBros.Cosmos
 
         public CosmosService
         (
-            CosmosClient cosmosClient,
+            ICosmosFactory cosmosFactory, 
             IServiceProvider serviceProvider,
-            IOptions<CosmosServiceOptions> options,
+            IOptions<U> options,
             ITelemetryService telemetryService,
             IDateTimeService dateTimeService,
-            ILoggingService<CosmosService> logger
+            ILoggingService<CosmosService<U>> logger
         )
         {
-            _cosmosClient = cosmosClient;
-            _cosmosContainer = _cosmosClient.GetContainer(options.Value.DatabaseId, options.Value.ContainerId);
+            _cosmosClient = cosmosFactory.CreateCosmosClient(options.Value);
+            _cosmosContainer = cosmosFactory.GetContainer(_cosmosClient, options.Value);
 
             _serviceProvider = serviceProvider;
             _logger = logger;
@@ -41,9 +42,9 @@ namespace DickinsonBros.Cosmos
             _dateTimeService = dateTimeService;
         }
 
-        public async Task<IEnumerable<T>> QueryAsync<T>(QueryDefinition queryDefinition, string key, QueryRequestOptions queryRequestOptions)
+        public async Task<IEnumerable<T>> QueryAsync<T>(QueryDefinition queryDefinition, QueryRequestOptions queryRequestOptions)
         {
-            var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
+            var methodIdentifier = $"{nameof(CosmosService<U>)}.{nameof(CosmosService<U>.QueryAsync)}";
             var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
 
             var telemetry = new TelemetryData
@@ -80,7 +81,6 @@ namespace DickinsonBros.Cosmos
                     new Dictionary<string, object>
                     {
                         { nameof(queryDefinition), queryDefinition },
-                        { nameof(key), key },
                         { nameof(queryRequestOptions), queryRequestOptions },
                         { nameof(items), items },
                         { nameof(stopwatchService.ElapsedMilliseconds), telemetry.ElapsedMilliseconds }
@@ -102,7 +102,6 @@ namespace DickinsonBros.Cosmos
                     new Dictionary<string, object>
                     {
                         { nameof(queryDefinition), queryDefinition },
-                        { nameof(key), key },
                         { nameof(queryRequestOptions), queryRequestOptions },
                         { nameof(stopwatchService.ElapsedMilliseconds), telemetry.ElapsedMilliseconds }
                     }
@@ -118,7 +117,7 @@ namespace DickinsonBros.Cosmos
 
         public async Task<ItemResponse<T>> FetchAsync<T>(string id, string key)
         {
-            var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
+            var methodIdentifier = $"{nameof(CosmosService<U>)}.{nameof(CosmosService<U>.FetchAsync)}";
             var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
 
             var telemetry = new TelemetryData
@@ -179,7 +178,7 @@ namespace DickinsonBros.Cosmos
 
         public async Task<ItemResponse<T>> InsertAsync<T>(string key, T value)
         {
-            var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.InsertAsync)}";
+            var methodIdentifier = $"{nameof(CosmosService<U>)}.{nameof(CosmosService<U>.InsertAsync)}";
             var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
 
             var telemetry = new TelemetryData
@@ -239,7 +238,7 @@ namespace DickinsonBros.Cosmos
 
         public async Task<ItemResponse<T>> UpsertAsync<T>(string key, string eTag, T value)
         {
-            var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.UpsertAsync)}";
+            var methodIdentifier = $"{nameof(CosmosService<U>)}.{nameof(CosmosService<U>.UpsertAsync)}";
             var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
 
             var telemetry = new TelemetryData
@@ -319,7 +318,7 @@ namespace DickinsonBros.Cosmos
 
         public async Task<ItemResponse<object>> DeleteAsync(string id, string key)
         {
-            var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.DeleteAsync)}";
+            var methodIdentifier = $"{nameof(CosmosService<U>)}.{nameof(CosmosService<U>.DeleteAsync)}";
             var stopwatchService = _serviceProvider.GetRequiredService<IStopwatchService>();
 
             var telemetry = new TelemetryData

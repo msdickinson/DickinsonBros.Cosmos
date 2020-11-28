@@ -3,7 +3,7 @@
 namespace DickinsonBros.Cosmos.Models
 {
     [ExcludeFromCodeCoverage]
-    public class CosmosServiceOptions
+    public abstract class CosmosServiceOptions
     {
         public string EndpointUri { get; set; }
         public string PrimaryKey { get; set; }

@@ -6,7 +6,8 @@ using Microsoft.Extensions.Options;
 
 namespace DickinsonBros.Cosmos.Configurators
 {
-    public class CosmosServiceOptionsConfigurator : IConfigureOptions<CosmosServiceOptions>
+    public class CosmosServiceOptionsConfigurator<T> : IConfigureOptions<T>
+    where T : CosmosServiceOptions
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
         public CosmosServiceOptionsConfigurator(IServiceScopeFactory serviceScopeFactory)
@@ -14,16 +15,16 @@ namespace DickinsonBros.Cosmos.Configurators
             _serviceScopeFactory = serviceScopeFactory;
         }
 
-        void IConfigureOptions<CosmosServiceOptions>.Configure(CosmosServiceOptions options)
+        void IConfigureOptions<T>.Configure(T options)
         {
             using (var scope = _serviceScopeFactory.CreateScope())
             {
                 var provider = scope.ServiceProvider;
                 var configuration = provider.GetRequiredService<IConfiguration>();
                 var configurationEncryptionService = provider.GetRequiredService<IConfigurationEncryptionService>();
-                var telemetryServiceOptions = configuration.GetSection(nameof(CosmosServiceOptions)).Get<CosmosServiceOptions>();
+                var telemetryServiceOptions = configuration.GetSection(typeof(T).Name).Get<T>();
 
-                configuration.Bind($"{nameof(CosmosServiceOptions)}", options);
+                configuration.Bind(typeof(T).Name, options);
 
                 options.ConnectionString = configurationEncryptionService.Decrypt(telemetryServiceOptions.ConnectionString);
                 options.PrimaryKey = configurationEncryptionService.Decrypt(telemetryServiceOptions.PrimaryKey);

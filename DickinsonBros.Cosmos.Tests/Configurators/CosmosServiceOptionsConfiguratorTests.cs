@@ -14,11 +14,13 @@ namespace DickinsonBros.Cosmos.Tests.Configurators
     [TestClass]
     public class CosmosServiceOptionsConfiguratorTests : BaseTest
     {
+        class SampleCosmosServiceOptions : CosmosServiceOptions
+        { }
 
         [TestMethod]
         public async Task Configure_Runs_ConfigReturns()
         {
-            var cosmosServiceOptions = new CosmosServiceOptions
+            var cosmosServiceOptions = new SampleCosmosServiceOptions
             {
                 ConnectionString = "SampleConnectionString",
                 ContainerId = "SampleContainerId",
@@ -27,7 +29,7 @@ namespace DickinsonBros.Cosmos.Tests.Configurators
                 PrimaryKey = "SamplePrimaryKey"
             };
 
-            var cosmosServiceOptionsDecrypted = new CosmosServiceOptions
+            var cosmosServiceOptionsDecrypted = new SampleCosmosServiceOptions
             {
                 ConnectionString = "SampleDecryptedConnectionString",
                 PrimaryKey = "SampleDecryptedPrimaryKey"
@@ -69,7 +71,7 @@ namespace DickinsonBros.Cosmos.Tests.Configurators
                     );
 
                     //Act
-                    var options = serviceProvider.GetRequiredService<IOptions<CosmosServiceOptions>>().Value;
+                    var options = serviceProvider.GetRequiredService<IOptions<SampleCosmosServiceOptions>>().Value;
 
                     //Assert
                     Assert.IsNotNull(options);
@@ -93,7 +95,7 @@ namespace DickinsonBros.Cosmos.Tests.Configurators
         {
             serviceCollection.AddOptions();
             serviceCollection.AddSingleton<IConfiguration>(configuration);
-            serviceCollection.AddSingleton<IConfigureOptions<CosmosServiceOptions>, CosmosServiceOptionsConfigurator>();
+            serviceCollection.AddSingleton<IConfigureOptions<SampleCosmosServiceOptions>, CosmosServiceOptionsConfigurator<SampleCosmosServiceOptions>>();
             serviceCollection.AddSingleton(Mock.Of<IConfigurationEncryptionService>());
 
             return serviceCollection;
