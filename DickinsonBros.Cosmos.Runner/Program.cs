@@ -13,7 +13,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -35,7 +34,7 @@ namespace DickinsonBros.Cosmos.Runner
 
                 using (var provider = services.BuildServiceProvider())
                 {
-                    var noSQLService = provider.GetRequiredService<ICosmosService>();
+                    var noSQLService = provider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
                     var hostApplicationLifetime = provider.GetRequiredService<IHostApplicationLifetime>();
                     var guid = Guid.NewGuid().ToString();
                     var value = Guid.NewGuid().ToString();
@@ -54,7 +53,6 @@ namespace DickinsonBros.Cosmos.Runner
                     var fetchedQuerySampleModel = await noSQLService.QueryAsync<SampleModel>
                     (
                         new QueryDefinition("SELECT * FROM coaster"),
-                        sampleModelValue.Key,
                         new Microsoft.Azure.Cosmos.QueryRequestOptions {
                             PartitionKey = new PartitionKey(sampleModelValue.Key),
                             MaxItemCount = 100
@@ -105,7 +103,7 @@ fetchedSampleModel: {System.Text.Json.JsonSerializer.Serialize(fetchedSampleMode
             services.AddRedactorService();
             services.AddConfigurationEncryptionService();
             services.AddTelemetryService();
-            services.AddCosmosService();
+            services.AddCosmosService<SampleCosmosServiceOptions>();
         }
 
         IServiceCollection InitializeDependencyInjection()

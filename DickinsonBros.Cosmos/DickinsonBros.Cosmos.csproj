@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <Configurations>Debug;Release</Configurations>
-    <VersionPrefix>3.1.0</VersionPrefix>
+    <VersionPrefix>3.2.0</VersionPrefix>
     <Authors>Mark Dickinson</Authors>
     <Company>DickinsonBros</Company>
     <RepositoryUrl>https://github.com/msdickinson/DickinsonBros.Cosmos.git</RepositoryUrl>
@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <Content Remove="C:\Users\marks\.nuget\packages\microsoft.azure.cosmos\3.13.0\contentFiles\any\netstandard2.0\ThirdPartyNotice.txt" />
+    <Content Remove="C:\Users\marks\.nuget\packages\microsoft.azure.cosmos\3.14.0\contentFiles\any\netstandard2.0\ThirdPartyNotice.txt" />
   </ItemGroup>
 
   <ItemGroup>

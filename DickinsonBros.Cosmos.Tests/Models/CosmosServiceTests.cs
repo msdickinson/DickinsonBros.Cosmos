@@ -12,11 +12,16 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace DickinsonBros.Cosmos.Tests.Models
 {
+    public class SampleCosmosServiceOptions : CosmosServiceOptions
+    { }
+
+
     public class SampleModel
     {
         public string key { get; set; }
@@ -27,11 +32,10 @@ namespace DickinsonBros.Cosmos.Tests.Models
     [TestClass]
     public class CosmosServiceTests : BaseTest
     {
+        #region QueryAsync
 
-        #region FetchAsync
-   
         [TestMethod]
-        public async Task FetchAsync_Runs_GetDateTimeUTCCalled()
+        public async Task QueryAsync_Runs_GetDateTimeUTCCalled()
         {
             await RunDependencyInjectedTestAsync
             (
@@ -43,11 +47,12 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.QueryAsync)}";
 
+                    //--ILoggingService<CosmosService<SampleCosmosServiceOptions
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
                     loggingServiceMock
@@ -65,13 +70,1775 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         propertiesObserved = properties;
                     });
 
-
+                    //--IDateTimeService
                     var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
                     dateTimeServiceMock
                     .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
                     .Returns(expectedDateTime);
 
+                    //--CosmosClient
                     var cosmosClientMock = serviceProvider.GetMock<CosmosClient>();
+
+                    //--FeedResponse<SampleModel>                    
+                    var sampleModels = new List<SampleModel>
+                    {
+                        new SampleModel
+                        {
+                            id = "1",
+                            coasterData = "SampleCoaterData1",
+                            key = "SampleKey1"
+                        },
+                        new SampleModel
+                        {
+                            id = "2",
+                            coasterData = "SampleCoaterData2",
+                            key = "SampleKey2"
+                        }
+                    };
+                    var feedResponseMock = new Mock<FeedResponse<SampleModel>>();
+                    feedResponseMock.Setup
+                    (
+                        feedResponse => feedResponse.GetEnumerator()
+                    )
+                    .Returns
+                    (
+                        sampleModels.GetEnumerator()
+                    );
+
+                    //--FeedIterator<SampleModel>
+                    var feedIteratorMock = new Mock<FeedIterator<SampleModel>>();
+                    var feedIteratorCalls = 0;
+
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.HasMoreResults
+                    )
+                    .Returns(() =>
+                    {
+                        feedIteratorCalls++;
+                        return feedIteratorCalls <= 1;
+                    });
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.ReadNextAsync
+                        (
+                            It.IsAny<CancellationToken>()
+                        )
+                    )
+                    .ReturnsAsync(feedResponseMock.Object);
+
+                    //--Container
+                    var containerMock = serviceProvider.GetMock<Container>();
+                    var itemResponseMock = new Mock<ItemResponse<SampleModel>>();
+                    itemResponseMock
+                    .Setup(itemResponse => itemResponse.Resource)
+                    .Returns(sampleModel);
+
+                    containerMock
+                    .Setup
+                    (
+                        container => container.GetItemQueryIterator<SampleModel>
+                        (
+                            It.IsAny<QueryDefinition>(),
+                            It.IsAny<string>(),
+                            It.IsAny<QueryRequestOptions>()
+                        )
+                    )
+                    .Returns(feedIteratorMock.Object);
+
+                    cosmosClientMock
+                    .Setup
+                    (
+                        cosmosClient => cosmosClient.GetContainer
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<string>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ITelemetryService
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    var telemetryDataObserved = (TelemetryData)null;
+                    telemetryServiceMock.Setup
+                    (
+                        telemetryService => telemetryService.Insert
+                        (
+                            It.IsAny<TelemetryData>()
+                        )
+                    )
+                    .Callback((TelemetryData telemetryData) =>
+                    {
+                        telemetryDataObserved = telemetryData;
+                    });
+
+                    //--IStopwatchService
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+                    stopwatchServiceMock
+                    .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                    .Returns(expectedElapsedMilliseconds);
+
+
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
+
+                    var sampleQuery = "SampleQuery";
+                    var queryDef = new QueryDefinition(sampleQuery);
+                    var queryRequestOptions = new QueryRequestOptions();
+
+                    //Act
+                    var observed = await uut.QueryAsync<SampleModel>(queryDef, queryRequestOptions);
+
+                    //Assert
+                    dateTimeServiceMock
+                    .Verify
+                    (
+                        dateTimeService => dateTimeService.GetDateTimeUTC(),
+                        Times.Once
+                    );
+                },
+               serviceCollection => ConfigureServices(serviceCollection)
+           );
+        }
+
+        [TestMethod]
+        public async Task QueryAsync_Runs_StopWatchStartCalled()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+                    var sampleModel = new SampleModel
+                    {
+                        coasterData = "abc"
+                    };
+
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.QueryAsync)}";
+
+                    //--ILoggingService<CosmosService<SampleCosmosServiceOptions
+                    var expectedDateTime = new System.DateTime(2020, 1, 1);
+                    var expectedElapsedMilliseconds = (long)5000;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
+                    var messageObserved = (string)null;
+                    var propertiesObserved = (IDictionary<string, object>)null;
+                    loggingServiceMock
+                    .Setup
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    )
+                    .Callback((string message, IDictionary<string, object> properties) =>
+                    {
+                        messageObserved = message;
+                        propertiesObserved = properties;
+                    });
+
+                    //--IDateTimeService
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                    .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                    .Returns(expectedDateTime);
+
+                    //--CosmosClient
+                    var cosmosClientMock = serviceProvider.GetMock<CosmosClient>();
+
+                    //--FeedResponse<SampleModel>                    
+                    var sampleModels = new List<SampleModel>
+                    {
+                        new SampleModel
+                        {
+                            id = "1",
+                            coasterData = "SampleCoaterData1",
+                            key = "SampleKey1"
+                        },
+                        new SampleModel
+                        {
+                            id = "2",
+                            coasterData = "SampleCoaterData2",
+                            key = "SampleKey2"
+                        }
+                    };
+                    var feedResponseMock = new Mock<FeedResponse<SampleModel>>();
+                    feedResponseMock.Setup
+                    (
+                        feedResponse => feedResponse.GetEnumerator()
+                    )
+                    .Returns
+                    (
+                        sampleModels.GetEnumerator()
+                    );
+
+                    //--FeedIterator<SampleModel>
+                    var feedIteratorMock = new Mock<FeedIterator<SampleModel>>();
+                    var feedIteratorCalls = 0;
+
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.HasMoreResults
+                    )
+                    .Returns(() =>
+                    {
+                        feedIteratorCalls++;
+                        return feedIteratorCalls <= 1;
+                    });
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.ReadNextAsync
+                        (
+                            It.IsAny<CancellationToken>()
+                        )
+                    )
+                    .ReturnsAsync(feedResponseMock.Object);
+
+                    //--Container
+                    var containerMock = serviceProvider.GetMock<Container>();
+                    var itemResponseMock = new Mock<ItemResponse<SampleModel>>();
+                    itemResponseMock
+                    .Setup(itemResponse => itemResponse.Resource)
+                    .Returns(sampleModel);
+
+                    containerMock
+                    .Setup
+                    (
+                        container => container.GetItemQueryIterator<SampleModel>
+                        (
+                            It.IsAny<QueryDefinition>(),
+                            It.IsAny<string>(),
+                            It.IsAny<QueryRequestOptions>()
+                        )
+                    )
+                    .Returns(feedIteratorMock.Object);
+
+                    cosmosClientMock
+                    .Setup
+                    (
+                        cosmosClient => cosmosClient.GetContainer
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<string>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ITelemetryService
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    var telemetryDataObserved = (TelemetryData)null;
+                    telemetryServiceMock.Setup
+                    (
+                        telemetryService => telemetryService.Insert
+                        (
+                            It.IsAny<TelemetryData>()
+                        )
+                    )
+                    .Callback((TelemetryData telemetryData) =>
+                    {
+                        telemetryDataObserved = telemetryData;
+                    });
+
+                    //--IStopwatchService
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+                    stopwatchServiceMock
+                    .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                    .Returns(expectedElapsedMilliseconds);
+
+
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
+
+                    var sampleQuery = "SampleQuery";
+                    var queryDef = new QueryDefinition(sampleQuery);
+                    var queryRequestOptions = new QueryRequestOptions();
+
+                    //Act
+                    var observed = await uut.QueryAsync<SampleModel>(queryDef, queryRequestOptions);
+
+                    //Assert
+                    stopwatchServiceMock
+                    .Verify
+                    (
+                        stopwatchService => stopwatchService.Start(),
+                        Times.Once
+                    );
+                },
+               serviceCollection => ConfigureServices(serviceCollection)
+           );
+        }
+
+        [TestMethod]
+        public async Task QueryAsync_Runs_CosmosGetItemQueryIteratorCalled()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+                    var sampleModel = new SampleModel
+                    {
+                        coasterData = "abc"
+                    };
+
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.QueryAsync)}";
+
+                    //--ILoggingService<CosmosService<SampleCosmosServiceOptions
+                    var expectedDateTime = new System.DateTime(2020, 1, 1);
+                    var expectedElapsedMilliseconds = (long)5000;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
+                    var messageObserved = (string)null;
+                    var propertiesObserved = (IDictionary<string, object>)null;
+                    loggingServiceMock
+                    .Setup
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    )
+                    .Callback((string message, IDictionary<string, object> properties) =>
+                    {
+                        messageObserved = message;
+                        propertiesObserved = properties;
+                    });
+
+                    //--IDateTimeService
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                    .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                    .Returns(expectedDateTime);
+
+                    //--CosmosClient
+                    var cosmosClientMock = serviceProvider.GetMock<CosmosClient>();
+
+                    //--FeedResponse<SampleModel>                    
+                    var sampleModels = new List<SampleModel>
+                    {
+                        new SampleModel
+                        {
+                            id = "1",
+                            coasterData = "SampleCoaterData1",
+                            key = "SampleKey1"
+                        },
+                        new SampleModel
+                        {
+                            id = "2",
+                            coasterData = "SampleCoaterData2",
+                            key = "SampleKey2"
+                        }
+                    };
+                    var feedResponseMock = new Mock<FeedResponse<SampleModel>>();
+                    feedResponseMock.Setup
+                    (
+                        feedResponse => feedResponse.GetEnumerator()
+                    )
+                    .Returns
+                    (
+                        sampleModels.GetEnumerator()
+                    );
+
+                    //--FeedIterator<SampleModel>
+                    var feedIteratorMock = new Mock<FeedIterator<SampleModel>>();
+                    var feedIteratorCalls = 0;
+
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.HasMoreResults
+                    )
+                    .Returns(() =>
+                    {
+                        feedIteratorCalls++;
+                        return feedIteratorCalls <= 1;
+                    });
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.ReadNextAsync
+                        (
+                            It.IsAny<CancellationToken>()
+                        )
+                    )
+                    .ReturnsAsync(feedResponseMock.Object);
+
+                    //--Container
+                    var containerMock = serviceProvider.GetMock<Container>();
+                    var itemResponseMock = new Mock<ItemResponse<SampleModel>>();
+                    itemResponseMock
+                    .Setup(itemResponse => itemResponse.Resource)
+                    .Returns(sampleModel);
+
+                    containerMock
+                    .Setup
+                    (
+                        container => container.GetItemQueryIterator<SampleModel>
+                        (
+                            It.IsAny<QueryDefinition>(),
+                            It.IsAny<string>(),
+                            It.IsAny<QueryRequestOptions>()
+                        )
+                    )
+                    .Returns(feedIteratorMock.Object);
+
+                    cosmosClientMock
+                    .Setup
+                    (
+                        cosmosClient => cosmosClient.GetContainer
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<string>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ITelemetryService
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    var telemetryDataObserved = (TelemetryData)null;
+                    telemetryServiceMock.Setup
+                    (
+                        telemetryService => telemetryService.Insert
+                        (
+                            It.IsAny<TelemetryData>()
+                        )
+                    )
+                    .Callback((TelemetryData telemetryData) =>
+                    {
+                        telemetryDataObserved = telemetryData;
+                    });
+
+                    //--IStopwatchService
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+                    stopwatchServiceMock
+                    .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                    .Returns(expectedElapsedMilliseconds);
+
+
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
+
+                    var sampleQuery = "SampleQuery";
+                    var queryDef = new QueryDefinition(sampleQuery);
+                    var queryRequestOptions = new QueryRequestOptions();
+
+                    //Act
+                    var observed = await uut.QueryAsync<SampleModel>(queryDef, queryRequestOptions);
+
+                    //Assert
+
+                    containerMock
+                    .Verify
+                    (
+                        container => container.GetItemQueryIterator<SampleModel>
+                        (
+                            queryDef,
+                            null,
+                            queryRequestOptions
+                        ),
+                        Times.Once
+                    );
+                },
+               serviceCollection => ConfigureServices(serviceCollection)
+           );
+        }
+
+        [TestMethod]
+        public async Task QueryAsync_Runs_StopWatchStopCalled()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+                    var sampleModel = new SampleModel
+                    {
+                        coasterData = "abc"
+                    };
+
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.QueryAsync)}";
+
+                    //--ILoggingService<CosmosService<SampleCosmosServiceOptions
+                    var expectedDateTime = new System.DateTime(2020, 1, 1);
+                    var expectedElapsedMilliseconds = (long)5000;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
+                    var messageObserved = (string)null;
+                    var propertiesObserved = (IDictionary<string, object>)null;
+                    loggingServiceMock
+                    .Setup
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    )
+                    .Callback((string message, IDictionary<string, object> properties) =>
+                    {
+                        messageObserved = message;
+                        propertiesObserved = properties;
+                    });
+
+                    //--IDateTimeService
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                    .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                    .Returns(expectedDateTime);
+
+                    //--CosmosClient
+                    var cosmosClientMock = serviceProvider.GetMock<CosmosClient>();
+
+                    //--FeedResponse<SampleModel>                    
+                    var sampleModels = new List<SampleModel>
+                    {
+                        new SampleModel
+                        {
+                            id = "1",
+                            coasterData = "SampleCoaterData1",
+                            key = "SampleKey1"
+                        },
+                        new SampleModel
+                        {
+                            id = "2",
+                            coasterData = "SampleCoaterData2",
+                            key = "SampleKey2"
+                        }
+                    };
+                    var feedResponseMock = new Mock<FeedResponse<SampleModel>>();
+                    feedResponseMock.Setup
+                    (
+                        feedResponse => feedResponse.GetEnumerator()
+                    )
+                    .Returns
+                    (
+                        sampleModels.GetEnumerator()
+                    );
+
+                    //--FeedIterator<SampleModel>
+                    var feedIteratorMock = new Mock<FeedIterator<SampleModel>>();
+                    var feedIteratorCalls = 0;
+
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.HasMoreResults
+                    )
+                    .Returns(() =>
+                    {
+                        feedIteratorCalls++;
+                        return feedIteratorCalls <= 1;
+                    });
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.ReadNextAsync
+                        (
+                            It.IsAny<CancellationToken>()
+                        )
+                    )
+                    .ReturnsAsync(feedResponseMock.Object);
+
+                    //--Container
+                    var containerMock = serviceProvider.GetMock<Container>();
+                    var itemResponseMock = new Mock<ItemResponse<SampleModel>>();
+                    itemResponseMock
+                    .Setup(itemResponse => itemResponse.Resource)
+                    .Returns(sampleModel);
+
+                    containerMock
+                    .Setup
+                    (
+                        container => container.GetItemQueryIterator<SampleModel>
+                        (
+                            It.IsAny<QueryDefinition>(),
+                            It.IsAny<string>(),
+                            It.IsAny<QueryRequestOptions>()
+                        )
+                    )
+                    .Returns(feedIteratorMock.Object);
+
+                    cosmosClientMock
+                    .Setup
+                    (
+                        cosmosClient => cosmosClient.GetContainer
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<string>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ITelemetryService
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    var telemetryDataObserved = (TelemetryData)null;
+                    telemetryServiceMock.Setup
+                    (
+                        telemetryService => telemetryService.Insert
+                        (
+                            It.IsAny<TelemetryData>()
+                        )
+                    )
+                    .Callback((TelemetryData telemetryData) =>
+                    {
+                        telemetryDataObserved = telemetryData;
+                    });
+
+                    //--IStopwatchService
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+                    stopwatchServiceMock
+                    .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                    .Returns(expectedElapsedMilliseconds);
+
+
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
+
+                    var sampleQuery = "SampleQuery";
+                    var queryDef = new QueryDefinition(sampleQuery);
+                    var queryRequestOptions = new QueryRequestOptions();
+
+                    //Act
+                    var observed = await uut.QueryAsync<SampleModel>(queryDef, queryRequestOptions);
+
+                    //Assert
+                    stopwatchServiceMock
+                    .Verify
+                    (
+                        stopwatchService => stopwatchService.Stop(),
+                        Times.Once
+                    );
+                },
+               serviceCollection => ConfigureServices(serviceCollection)
+           );
+        }
+
+        [TestMethod]
+        public async Task QueryAsync_Runs_LogInformationRedactedCalled()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+                    var sampleModel = new SampleModel
+                    {
+                        coasterData = "abc"
+                    };
+
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.QueryAsync)}";
+
+                    //--ILoggingService<CosmosService<SampleCosmosServiceOptions
+                    var expectedDateTime = new System.DateTime(2020, 1, 1);
+                    var expectedElapsedMilliseconds = (long)5000;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
+                    var messageObserved = (string)null;
+                    var propertiesObserved = (IDictionary<string, object>)null;
+                    loggingServiceMock
+                    .Setup
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    )
+                    .Callback((string message, IDictionary<string, object> properties) =>
+                    {
+                        messageObserved = message;
+                        propertiesObserved = properties;
+                    });
+
+                    //--IDateTimeService
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                    .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                    .Returns(expectedDateTime);
+
+                    //--CosmosClient
+                    var cosmosClientMock = serviceProvider.GetMock<CosmosClient>();
+
+                    //--FeedResponse<SampleModel>                    
+                    var sampleModels = new List<SampleModel>
+                    {
+                        new SampleModel
+                        {
+                            id = "1",
+                            coasterData = "SampleCoaterData1",
+                            key = "SampleKey1"
+                        },
+                        new SampleModel
+                        {
+                            id = "2",
+                            coasterData = "SampleCoaterData2",
+                            key = "SampleKey2"
+                        }
+                    };
+                    var feedResponseMock = new Mock<FeedResponse<SampleModel>>();
+                    feedResponseMock.Setup
+                    (
+                        feedResponse => feedResponse.GetEnumerator()
+                    )
+                    .Returns
+                    (
+                        sampleModels.GetEnumerator()
+                    );
+
+                    //--FeedIterator<SampleModel>
+                    var feedIteratorMock = new Mock<FeedIterator<SampleModel>>();
+                    var feedIteratorCalls = 0;
+
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.HasMoreResults
+                    )
+                    .Returns(() =>
+                    {
+                        feedIteratorCalls++;
+                        return feedIteratorCalls <= 1;
+                    });
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.ReadNextAsync
+                        (
+                            It.IsAny<CancellationToken>()
+                        )
+                    )
+                    .ReturnsAsync(feedResponseMock.Object);
+
+                    //--Container
+                    var containerMock = serviceProvider.GetMock<Container>();
+                    var itemResponseMock = new Mock<ItemResponse<SampleModel>>();
+                    itemResponseMock
+                    .Setup(itemResponse => itemResponse.Resource)
+                    .Returns(sampleModel);
+
+                    containerMock
+                    .Setup
+                    (
+                        container => container.GetItemQueryIterator<SampleModel>
+                        (
+                            It.IsAny<QueryDefinition>(),
+                            It.IsAny<string>(),
+                            It.IsAny<QueryRequestOptions>()
+                        )
+                    )
+                    .Returns(feedIteratorMock.Object);
+
+                    cosmosClientMock
+                    .Setup
+                    (
+                        cosmosClient => cosmosClient.GetContainer
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<string>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ITelemetryService
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    var telemetryDataObserved = (TelemetryData)null;
+                    telemetryServiceMock.Setup
+                    (
+                        telemetryService => telemetryService.Insert
+                        (
+                            It.IsAny<TelemetryData>()
+                        )
+                    )
+                    .Callback((TelemetryData telemetryData) =>
+                    {
+                        telemetryDataObserved = telemetryData;
+                    });
+
+                    //--IStopwatchService
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+                    stopwatchServiceMock
+                    .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                    .Returns(expectedElapsedMilliseconds);
+
+
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
+
+                    var sampleQuery = "SampleQuery";
+                    var queryDef = new QueryDefinition(sampleQuery);
+                    var queryRequestOptions = new QueryRequestOptions();
+
+                    //Act
+                    var observed = await uut.QueryAsync<SampleModel>(queryDef, queryRequestOptions);
+
+                    //Assert
+                    loggingServiceMock
+                    .Verify
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        ),
+                        Times.Once
+                    );
+
+                    Assert.AreEqual(methodIdentifier                    , messageObserved);
+                    Assert.AreEqual(4                                   , propertiesObserved.Count);
+                    Assert.AreEqual(2                                   , ((List<SampleModel>)propertiesObserved["items"]).Count);
+                    Assert.AreEqual(sampleModels.First()                , ((List<SampleModel>)propertiesObserved["items"]).First());
+                    Assert.AreEqual(sampleModels.Last()                 , ((List<SampleModel>)propertiesObserved["items"]).Last());
+                    Assert.AreEqual(queryDef                            , propertiesObserved["queryDefinition"]);
+                    Assert.AreEqual(queryRequestOptions                 , propertiesObserved["queryRequestOptions"]);
+                    Assert.AreEqual((int)expectedElapsedMilliseconds    , propertiesObserved["ElapsedMilliseconds"]);
+                },
+               serviceCollection => ConfigureServices(serviceCollection)
+           );
+        }
+
+        [TestMethod]
+        public async Task QueryAsync_Runs_ReturnsItems()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+                    var sampleModel = new SampleModel
+                    {
+                        coasterData = "abc"
+                    };
+
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.QueryAsync)}";
+
+                    //--ILoggingService<CosmosService<SampleCosmosServiceOptions
+                    var expectedDateTime = new System.DateTime(2020, 1, 1);
+                    var expectedElapsedMilliseconds = (long)5000;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
+                    var messageObserved = (string)null;
+                    var propertiesObserved = (IDictionary<string, object>)null;
+                    loggingServiceMock
+                    .Setup
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    )
+                    .Callback((string message, IDictionary<string, object> properties) =>
+                    {
+                        messageObserved = message;
+                        propertiesObserved = properties;
+                    });
+
+                    //--IDateTimeService
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                    .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                    .Returns(expectedDateTime);
+
+                    //--CosmosClient
+                    var cosmosClientMock = serviceProvider.GetMock<CosmosClient>();
+
+                    //--FeedResponse<SampleModel>                    
+                    var sampleModels = new List<SampleModel>
+                    {
+                        new SampleModel
+                        {
+                            id = "1",
+                            coasterData = "SampleCoaterData1",
+                            key = "SampleKey1"
+                        },
+                        new SampleModel
+                        {
+                            id = "2",
+                            coasterData = "SampleCoaterData2",
+                            key = "SampleKey2"
+                        }
+                    };
+                    var feedResponseMock = new Mock<FeedResponse<SampleModel>>();
+                    feedResponseMock.Setup
+                    (
+                        feedResponse => feedResponse.GetEnumerator()
+                    )
+                    .Returns
+                    (
+                        sampleModels.GetEnumerator()
+                    );
+
+                    //--FeedIterator<SampleModel>
+                    var feedIteratorMock = new Mock<FeedIterator<SampleModel>>();
+                    var feedIteratorCalls = 0;
+
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.HasMoreResults
+                    )
+                    .Returns(() =>
+                    {
+                        feedIteratorCalls++;
+                        return feedIteratorCalls <= 1;
+                    });
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.ReadNextAsync
+                        (
+                            It.IsAny<CancellationToken>()
+                        )
+                    )
+                    .ReturnsAsync(feedResponseMock.Object);
+
+                    //--Container
+                    var containerMock = serviceProvider.GetMock<Container>();
+                    var itemResponseMock = new Mock<ItemResponse<SampleModel>>();
+                    itemResponseMock
+                    .Setup(itemResponse => itemResponse.Resource)
+                    .Returns(sampleModel);
+
+                    containerMock
+                    .Setup
+                    (
+                        container => container.GetItemQueryIterator<SampleModel>
+                        (
+                            It.IsAny<QueryDefinition>(),
+                            It.IsAny<string>(),
+                            It.IsAny<QueryRequestOptions>()
+                        )
+                    )
+                    .Returns(feedIteratorMock.Object);
+
+                    cosmosClientMock
+                    .Setup
+                    (
+                        cosmosClient => cosmosClient.GetContainer
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<string>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ITelemetryService
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    var telemetryDataObserved = (TelemetryData)null;
+                    telemetryServiceMock.Setup
+                    (
+                        telemetryService => telemetryService.Insert
+                        (
+                            It.IsAny<TelemetryData>()
+                        )
+                    )
+                    .Callback((TelemetryData telemetryData) =>
+                    {
+                        telemetryDataObserved = telemetryData;
+                    });
+
+                    //--IStopwatchService
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+                    stopwatchServiceMock
+                    .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                    .Returns(expectedElapsedMilliseconds);
+
+
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
+
+                    var sampleQuery = "SampleQuery";
+                    var queryDef = new QueryDefinition(sampleQuery);
+                    var queryRequestOptions = new QueryRequestOptions();
+
+                    //Act
+                    var observed = await uut.QueryAsync<SampleModel>(queryDef, queryRequestOptions);
+
+                    //Assert
+                    Assert.IsNotNull(observed);
+                    Assert.AreEqual(2                       , observed.Count());
+                    Assert.AreEqual(sampleModels.First()    , observed.First());
+                    Assert.AreEqual(sampleModels.Last()     , observed.Last());
+                },
+               serviceCollection => ConfigureServices(serviceCollection)
+           );
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(Exception))]
+        public async Task QueryAsync_OnExceptionThrown_LogErrorRedactedCalled()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+                    var sampleModel = new SampleModel
+                    {
+                        coasterData = "abc"
+                    };
+
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.QueryAsync)}";
+
+                    //--ILoggingService<CosmosService<SampleCosmosServiceOptions
+                    var expectedDateTime = new System.DateTime(2020, 1, 1);
+                    var expectedElapsedMilliseconds = (long)5000;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
+                    var messageObserved = (string)null;
+                    var propertiesObserved = (IDictionary<string, object>)null;
+                    loggingServiceMock
+                    .Setup
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    )
+                    .Callback((string message, IDictionary<string, object> properties) =>
+                    {
+                        messageObserved = message;
+                        propertiesObserved = properties;
+                    });
+
+                    //--IDateTimeService
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                    .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                    .Returns(expectedDateTime);
+
+                    //--CosmosClient
+                    var cosmosClientMock = serviceProvider.GetMock<CosmosClient>();
+
+                    //--FeedResponse<SampleModel>                    
+                    var sampleModels = new List<SampleModel>
+                    {
+                        new SampleModel
+                        {
+                            id = "1",
+                            coasterData = "SampleCoaterData1",
+                            key = "SampleKey1"
+                        },
+                        new SampleModel
+                        {
+                            id = "2",
+                            coasterData = "SampleCoaterData2",
+                            key = "SampleKey2"
+                        }
+                    };
+                    var feedResponseMock = new Mock<FeedResponse<SampleModel>>();
+                    feedResponseMock.Setup
+                    (
+                        feedResponse => feedResponse.GetEnumerator()
+                    )
+                    .Returns
+                    (
+                        sampleModels.GetEnumerator()
+                    );
+
+                    //--FeedIterator<SampleModel>
+                    var feedIteratorMock = new Mock<FeedIterator<SampleModel>>();
+                    var feedIteratorCalls = 0;
+
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.HasMoreResults
+                    )
+                    .Returns(() =>
+                    {
+                        feedIteratorCalls++;
+                        return feedIteratorCalls <= 1;
+                    });
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.ReadNextAsync
+                        (
+                            It.IsAny<CancellationToken>()
+                        )
+                    )
+                    .ReturnsAsync(feedResponseMock.Object);
+
+                    //--Container
+                    var containerMock = serviceProvider.GetMock<Container>();
+                    var itemResponseMock = new Mock<ItemResponse<SampleModel>>();
+                    itemResponseMock
+                    .Setup(itemResponse => itemResponse.Resource)
+                    .Returns(sampleModel);
+
+                    containerMock
+                    .Setup
+                    (
+                        container => container.GetItemQueryIterator<SampleModel>
+                        (
+                            It.IsAny<QueryDefinition>(),
+                            It.IsAny<string>(),
+                            It.IsAny<QueryRequestOptions>()
+                        )
+                    )
+                    .Throws(new Exception());
+
+                    cosmosClientMock
+                    .Setup
+                    (
+                        cosmosClient => cosmosClient.GetContainer
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<string>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ITelemetryService
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    var telemetryDataObserved = (TelemetryData)null;
+                    telemetryServiceMock.Setup
+                    (
+                        telemetryService => telemetryService.Insert
+                        (
+                            It.IsAny<TelemetryData>()
+                        )
+                    )
+                    .Callback((TelemetryData telemetryData) =>
+                    {
+                        telemetryDataObserved = telemetryData;
+                    });
+
+                    //--IStopwatchService
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+                    stopwatchServiceMock
+                    .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                    .Returns(expectedElapsedMilliseconds);
+
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
+
+                    var sampleQuery = "SampleQuery";
+                    var queryDef = new QueryDefinition(sampleQuery);
+                    var queryRequestOptions = new QueryRequestOptions();
+
+                    //Act
+                    var observed = await uut.QueryAsync<SampleModel>(queryDef, queryRequestOptions);
+
+                    //Assert
+                    loggingServiceMock
+                    .Verify
+                    (
+                        loggingService => loggingService.LogErrorRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<Exception>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        ),
+                        Times.Once
+                    );
+
+                    Assert.AreEqual($"Unhandled exception {methodIdentifier}", messageObserved);
+                    Assert.AreEqual(3, propertiesObserved.Count);
+                    Assert.AreEqual(queryDef, propertiesObserved["queryDefinition"]);
+                    Assert.AreEqual(queryRequestOptions, propertiesObserved["queryRequestOptions"]);
+                    Assert.AreEqual((int)expectedElapsedMilliseconds, propertiesObserved["ElapsedMilliseconds"]);
+                },
+               serviceCollection => ConfigureServices(serviceCollection)
+           );
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(Exception))]
+        public async Task QueryAsync_OnExceptionThrown_ThrowsException()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+                    var sampleModel = new SampleModel
+                    {
+                        coasterData = "abc"
+                    };
+
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.QueryAsync)}";
+
+                    //--ILoggingService<CosmosService<SampleCosmosServiceOptions
+                    var expectedDateTime = new System.DateTime(2020, 1, 1);
+                    var expectedElapsedMilliseconds = (long)5000;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
+                    var messageObserved = (string)null;
+                    var propertiesObserved = (IDictionary<string, object>)null;
+                    loggingServiceMock
+                    .Setup
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    )
+                    .Callback((string message, IDictionary<string, object> properties) =>
+                    {
+                        messageObserved = message;
+                        propertiesObserved = properties;
+                    });
+
+                    //--IDateTimeService
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                    .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                    .Returns(expectedDateTime);
+
+                    //--CosmosClient
+                    var cosmosClientMock = serviceProvider.GetMock<CosmosClient>();
+
+                    //--FeedResponse<SampleModel>                    
+                    var sampleModels = new List<SampleModel>
+                    {
+                        new SampleModel
+                        {
+                            id = "1",
+                            coasterData = "SampleCoaterData1",
+                            key = "SampleKey1"
+                        },
+                        new SampleModel
+                        {
+                            id = "2",
+                            coasterData = "SampleCoaterData2",
+                            key = "SampleKey2"
+                        }
+                    };
+                    var feedResponseMock = new Mock<FeedResponse<SampleModel>>();
+                    feedResponseMock.Setup
+                    (
+                        feedResponse => feedResponse.GetEnumerator()
+                    )
+                    .Returns
+                    (
+                        sampleModels.GetEnumerator()
+                    );
+
+                    //--FeedIterator<SampleModel>
+                    var feedIteratorMock = new Mock<FeedIterator<SampleModel>>();
+                    var feedIteratorCalls = 0;
+
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.HasMoreResults
+                    )
+                    .Returns(() =>
+                    {
+                        feedIteratorCalls++;
+                        return feedIteratorCalls <= 1;
+                    });
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.ReadNextAsync
+                        (
+                            It.IsAny<CancellationToken>()
+                        )
+                    )
+                    .ReturnsAsync(feedResponseMock.Object);
+
+                    //--Container
+                    var containerMock = serviceProvider.GetMock<Container>();
+                    var itemResponseMock = new Mock<ItemResponse<SampleModel>>();
+                    itemResponseMock
+                    .Setup(itemResponse => itemResponse.Resource)
+                    .Returns(sampleModel);
+
+                    containerMock
+                    .Setup
+                    (
+                        container => container.GetItemQueryIterator<SampleModel>
+                        (
+                            It.IsAny<QueryDefinition>(),
+                            It.IsAny<string>(),
+                            It.IsAny<QueryRequestOptions>()
+                        )
+                    )
+                    .Throws(new Exception());
+
+                    cosmosClientMock
+                    .Setup
+                    (
+                        cosmosClient => cosmosClient.GetContainer
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<string>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ITelemetryService
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    var telemetryDataObserved = (TelemetryData)null;
+                    telemetryServiceMock.Setup
+                    (
+                        telemetryService => telemetryService.Insert
+                        (
+                            It.IsAny<TelemetryData>()
+                        )
+                    )
+                    .Callback((TelemetryData telemetryData) =>
+                    {
+                        telemetryDataObserved = telemetryData;
+                    });
+
+                    //--IStopwatchService
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+                    stopwatchServiceMock
+                    .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                    .Returns(expectedElapsedMilliseconds);
+
+
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
+
+                    var sampleQuery = "SampleQuery";
+                    var queryDef = new QueryDefinition(sampleQuery);
+                    var queryRequestOptions = new QueryRequestOptions();
+
+                    //Act
+                    var observed = await uut.QueryAsync<SampleModel>(queryDef, queryRequestOptions);
+
+                    //Assert
+
+                },
+               serviceCollection => ConfigureServices(serviceCollection)
+           );
+        }
+
+        [TestMethod]
+        public async Task QueryAsync_Runs_TelemetryServiceInsertCalled()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+                    var sampleModel = new SampleModel
+                    {
+                        coasterData = "abc"
+                    };
+
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.QueryAsync)}";
+
+                    //--ILoggingService<CosmosService<SampleCosmosServiceOptions
+                    var expectedDateTime = new System.DateTime(2020, 1, 1);
+                    var expectedElapsedMilliseconds = (long)5000;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
+                    var messageObserved = (string)null;
+                    var propertiesObserved = (IDictionary<string, object>)null;
+                    loggingServiceMock
+                    .Setup
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    )
+                    .Callback((string message, IDictionary<string, object> properties) =>
+                    {
+                        messageObserved = message;
+                        propertiesObserved = properties;
+                    });
+
+                    //--IDateTimeService
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                    .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                    .Returns(expectedDateTime);
+
+                    //--CosmosClient
+                    var cosmosClientMock = serviceProvider.GetMock<CosmosClient>();
+
+                    //--FeedResponse<SampleModel>                    
+                    var sampleModels = new List<SampleModel>
+                    {
+                        new SampleModel
+                        {
+                            id = "1",
+                            coasterData = "SampleCoaterData1",
+                            key = "SampleKey1"
+                        },
+                        new SampleModel
+                        {
+                            id = "2",
+                            coasterData = "SampleCoaterData2",
+                            key = "SampleKey2"
+                        }
+                    };
+                    var feedResponseMock = new Mock<FeedResponse<SampleModel>>();
+                    feedResponseMock.Setup
+                    (
+                        feedResponse => feedResponse.GetEnumerator()
+                    )
+                    .Returns
+                    (
+                        sampleModels.GetEnumerator()
+                    );
+
+                    //--FeedIterator<SampleModel>
+                    var feedIteratorMock = new Mock<FeedIterator<SampleModel>>();
+                    var feedIteratorCalls = 0;
+
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.HasMoreResults
+                    )
+                    .Returns(() =>
+                    {
+                        feedIteratorCalls++;
+                        return feedIteratorCalls <= 1;
+                    });
+                    feedIteratorMock.Setup
+                    (
+                        feedIterator => feedIterator.ReadNextAsync
+                        (
+                            It.IsAny<CancellationToken>()
+                        )
+                    )
+                    .ReturnsAsync(feedResponseMock.Object);
+
+                    //--Container
+                    var containerMock = serviceProvider.GetMock<Container>();
+                    var itemResponseMock = new Mock<ItemResponse<SampleModel>>();
+                    itemResponseMock
+                    .Setup(itemResponse => itemResponse.Resource)
+                    .Returns(sampleModel);
+
+                    containerMock
+                    .Setup
+                    (
+                        container => container.GetItemQueryIterator<SampleModel>
+                        (
+                            It.IsAny<QueryDefinition>(),
+                            It.IsAny<string>(),
+                            It.IsAny<QueryRequestOptions>()
+                        )
+                    )
+                    .Returns(feedIteratorMock.Object);
+
+                    cosmosClientMock
+                    .Setup
+                    (
+                        cosmosClient => cosmosClient.GetContainer
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<string>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ITelemetryService
+                    var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
+                    var telemetryDataObserved = (TelemetryData)null;
+                    telemetryServiceMock.Setup
+                    (
+                        telemetryService => telemetryService.Insert
+                        (
+                            It.IsAny<TelemetryData>()
+                        )
+                    )
+                    .Callback((TelemetryData telemetryData) =>
+                    {
+                        telemetryDataObserved = telemetryData;
+                    });
+
+                    //--IStopwatchService
+                    var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
+                    stopwatchServiceMock
+                    .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
+                    .Returns(expectedElapsedMilliseconds);
+
+
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
+
+                    var sampleQuery = "SampleQuery";
+                    var queryDef = new QueryDefinition(sampleQuery);
+                    var queryRequestOptions = new QueryRequestOptions();
+
+                    //Act
+                    var observed = await uut.QueryAsync<SampleModel>(queryDef, queryRequestOptions);
+
+                    //Assert
+                    telemetryServiceMock
+                    .Verify
+                    (
+                        telemetryService => telemetryService.Insert
+                        (
+                            It.IsAny<TelemetryData>()
+                        ),
+                        Times.Once
+                    );
+
+                    Assert.IsNotNull(telemetryDataObserved);
+
+                    Assert.AreEqual(methodIdentifier, telemetryDataObserved.Name);
+                    Assert.AreEqual(TelemetryType.NoSQL, telemetryDataObserved.TelemetryType);
+                    Assert.AreEqual(expectedElapsedMilliseconds, telemetryDataObserved.ElapsedMilliseconds);
+                    Assert.AreEqual(TelemetryState.Successful, telemetryDataObserved.TelemetryState);
+                    Assert.AreEqual(expectedDateTime, telemetryDataObserved.DateTime);
+                },
+               serviceCollection => ConfigureServices(serviceCollection)
+           );
+        }
+
+
+        #endregion
+
+        #region FetchAsync
+
+        [TestMethod]
+        public async Task FetchAsync_Runs_GetDateTimeUTCCalled()
+        {
+            await RunDependencyInjectedTestAsync
+            (
+                async (serviceProvider) =>
+                {
+                    //Setup
+                    var sampleModel = new SampleModel
+                    {
+                        coasterData = "abc"
+                    };
+
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.FetchAsync)}";
+
+                    //--ILoggingService<CosmosService<SampleCosmosServiceOptions
+                    var expectedDateTime = new System.DateTime(2020, 1, 1);
+                    var expectedElapsedMilliseconds = (long)5000;
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
+                    var messageObserved = (string)null;
+                    var propertiesObserved = (IDictionary<string, object>)null;
+                    loggingServiceMock
+                    .Setup
+                    (
+                        loggingService => loggingService.LogInformationRedacted
+                        (
+                            It.IsAny<string>(),
+                            It.IsAny<IDictionary<string, object>>()
+                        )
+                    )
+                    .Callback((string message, IDictionary<string, object> properties) =>
+                    {
+                        messageObserved = message;
+                        propertiesObserved = properties;
+                    });
+
+                    //--IDateTimeService
+                    var dateTimeServiceMock = serviceProvider.GetMock<IDateTimeService>();
+                    dateTimeServiceMock
+                    .Setup(dateTimeService => dateTimeService.GetDateTimeUTC())
+                    .Returns(expectedDateTime);
+
+                    //--CosmosClient
+                    var cosmosClientMock = serviceProvider.GetMock<CosmosClient>();
+
+                    //--Container
                     var containerMock = serviceProvider.GetMock<Container>();
                     var itemResponseMock = new Mock<ItemResponse<SampleModel>>();
                     itemResponseMock
@@ -102,6 +1869,31 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ITelemetryService
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
                     telemetryServiceMock.Setup
@@ -116,14 +1908,15 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         telemetryDataObserved = telemetryData;
                     });
 
+                    //--IStopwatchService
                     var stopwatchServiceMock = serviceProvider.GetMock<IStopwatchService>();
                     stopwatchServiceMock
                     .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
                     .Returns(expectedElapsedMilliseconds);
 
 
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     var id = "1";
                     var key = "1";
@@ -156,11 +1949,11 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.FetchAsync)}";
 
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
                     loggingServiceMock
@@ -215,6 +2008,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
                     telemetryServiceMock.Setup
@@ -235,8 +2052,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     .Returns(expectedElapsedMilliseconds);
 
 
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     var id = "1";
                     var key = "1";
@@ -269,11 +2086,11 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.FetchAsync)}";
 
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
                     loggingServiceMock
@@ -336,6 +2153,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
                     telemetryServiceMock.Setup
@@ -356,8 +2197,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     .Returns(expectedElapsedMilliseconds);
 
 
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     var _id = "1";
                     var key = "1";
@@ -399,11 +2240,11 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.FetchAsync)}";
 
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
                     loggingServiceMock
@@ -458,6 +2299,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
                     telemetryServiceMock.Setup
@@ -478,8 +2343,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     .Returns(expectedElapsedMilliseconds);
 
 
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     var id = "1";
                     var key = "1";
@@ -512,10 +2377,10 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.FetchAsync)}";
                     var expectedElapsedMilliseconds = (long)5000;
 
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
                     loggingServiceMock
@@ -570,8 +2435,34 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
                     .Returns(expectedElapsedMilliseconds);
 
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     var id = "1";
                     var key = "1";
@@ -616,14 +2507,14 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.FetchAsync)}";
 
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
-                    
+
                     loggingServiceMock
                     .Setup
                     (
@@ -676,6 +2567,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
                     telemetryServiceMock.Setup
@@ -696,8 +2611,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     .Returns(expectedElapsedMilliseconds);
 
 
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     var id = "1";
                     var key = "1";
@@ -742,11 +2657,11 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.FetchAsync)}";
 
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -802,6 +2717,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
                     telemetryServiceMock.Setup
@@ -822,8 +2761,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     .Returns(expectedElapsedMilliseconds);
 
 
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     var id = "1";
                     var key = "1";
@@ -866,11 +2805,11 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.FetchAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.FetchAsync)}";
 
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
                     loggingServiceMock
@@ -925,6 +2864,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
                     telemetryServiceMock.Setup
@@ -945,8 +2908,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     .Returns(expectedElapsedMilliseconds);
 
 
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     var id = "1";
                     var key = "1";
@@ -995,12 +2958,12 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.InsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.InsertAsync)}";
 
                     var key = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -1066,6 +3029,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -1082,8 +3069,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.InsertAsync(key, sampleModel);
@@ -1113,12 +3100,12 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.InsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.InsertAsync)}";
 
                     var id = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -1184,6 +3171,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -1200,8 +3211,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.InsertAsync(id, sampleModel);
@@ -1231,12 +3242,12 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.InsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.InsertAsync)}";
 
                     var key = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -1305,6 +3316,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -1321,8 +3356,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.InsertAsync(key, sampleModel);
@@ -1365,12 +3400,12 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.InsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.InsertAsync)}";
 
                     var key = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -1436,6 +3471,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -1452,8 +3511,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.InsertAsync(key, sampleModel);
@@ -1483,12 +3542,12 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.InsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.InsertAsync)}";
 
                     var key = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -1554,6 +3613,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -1570,8 +3653,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.InsertAsync(key, sampleModel);
@@ -1612,12 +3695,12 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.InsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.InsertAsync)}";
 
                     var key = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -1677,6 +3760,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -1693,8 +3800,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.InsertAsync(key, sampleModel);
@@ -1736,12 +3843,12 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.InsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.InsertAsync)}";
 
                     var key = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -1801,6 +3908,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -1817,8 +3948,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.InsertAsync(key, sampleModel);
@@ -1842,12 +3973,12 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.InsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.InsertAsync)}";
 
                     var id = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -1913,6 +4044,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -1929,8 +4084,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.InsertAsync(id, sampleModel);
@@ -1976,13 +4131,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.UpsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.UpsertAsync)}";
 
                     var key = "1";
                     var eTag = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -2048,6 +4203,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -2064,8 +4243,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.UpsertAsync(key, eTag, sampleModel);
@@ -2095,13 +4274,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.UpsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.UpsertAsync)}";
 
                     var id = "1";
                     var eTag = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -2167,6 +4346,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -2183,8 +4386,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.UpsertAsync(id, eTag, sampleModel);
@@ -2214,13 +4417,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.UpsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.UpsertAsync)}";
 
-                    var key = "1"; 
+                    var key = "1";
                     var eTag = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -2289,6 +4492,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -2305,8 +4532,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.UpsertAsync(key, eTag, sampleModel);
@@ -2349,13 +4576,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.UpsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.UpsertAsync)}";
 
                     var key = "1";
                     var eTag = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -2424,6 +4651,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -2440,8 +4691,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.UpsertAsync(key, eTag, sampleModel);
@@ -2471,13 +4722,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.UpsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.UpsertAsync)}";
 
                     var key = "1";
                     var eTag = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -2514,7 +4765,7 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     var containerMock = serviceProvider.GetMock<Container>();
                     var itemObserved = (SampleModel)null;
                     var partitionKeyObserved = (PartitionKey?)null;
-                   
+
                     containerMock
                     .Setup
                     (
@@ -2546,6 +4797,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -2562,8 +4837,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.UpsertAsync(key, eTag, sampleModel);
@@ -2604,13 +4879,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.UpsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.UpsertAsync)}";
 
                     var key = "1";
                     var eTag = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -2670,6 +4945,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -2686,8 +4985,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.UpsertAsync(key, eTag, sampleModel);
@@ -2731,13 +5030,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.UpsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.UpsertAsync)}";
 
                     var key = "1";
                     var eTag = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -2797,6 +5096,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -2813,8 +5136,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.UpsertAsync(key, eTag, sampleModel);
@@ -2839,13 +5162,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.UpsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.UpsertAsync)}";
 
                     var key = "1";
                     var eTag = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -2905,6 +5228,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -2921,8 +5268,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.UpsertAsync(key, eTag, sampleModel);
@@ -2966,13 +5313,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.UpsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.UpsertAsync)}";
 
                     var key = "1";
                     var eTag = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -3032,6 +5379,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -3048,8 +5419,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.UpsertAsync(key, eTag, sampleModel);
@@ -3073,13 +5444,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.UpsertAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.UpsertAsync)}";
 
                     var key = "1";
                     var eTag = "1";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -3148,6 +5519,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -3164,8 +5559,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.UpsertAsync(key, eTag, sampleModel);
@@ -3206,13 +5601,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                 async (serviceProvider) =>
                 {
                     //Setup
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.DeleteAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.DeleteAsync)}";
 
                     var key = "1";
                     var id = "2";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -3281,6 +5676,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -3297,8 +5716,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.DeleteAsync(id, key);
@@ -3323,13 +5742,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                 async (serviceProvider) =>
                 {
                     //Setup
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.DeleteAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.DeleteAsync)}";
 
                     var id = "1";
                     var key = "2";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -3397,6 +5816,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         )
                     )
                     .Returns(containerMock.Object);
+            
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
 
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
@@ -3414,8 +5857,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.DeleteAsync(id, key);
@@ -3440,13 +5883,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                 async (serviceProvider) =>
                 {
                     //Setup
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.DeleteAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.DeleteAsync)}";
 
                     var key = "1";
                     var id = "2";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -3515,6 +5958,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -3531,8 +5998,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.DeleteAsync(id, key);
@@ -3570,13 +6037,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                 async (serviceProvider) =>
                 {
                     //Setup
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.DeleteAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.DeleteAsync)}";
 
                     var key = "1";
                     var id = "2";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -3645,6 +6112,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -3661,8 +6152,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.DeleteAsync(id, key);
@@ -3687,13 +6178,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                 async (serviceProvider) =>
                 {
                     //Setup
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.DeleteAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.DeleteAsync)}";
 
                     var key = "1";
                     var id = "2";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -3762,6 +6253,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -3778,8 +6293,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.DeleteAsync(id, key);
@@ -3820,13 +6335,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.DeleteAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.DeleteAsync)}";
 
                     var key = "1";
                     var id = "2";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -3857,7 +6372,7 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     stopwatchServiceMock
                     .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
                     .Returns(expectedElapsedMilliseconds);
-                    
+
                     //-CosmosContainer
                     var cosmosClientMock = serviceProvider.GetMock<CosmosClient>();
                     var containerMock = serviceProvider.GetMock<Container>();
@@ -3872,7 +6387,7 @@ namespace DickinsonBros.Cosmos.Tests.Models
                             It.IsAny<ItemRequestOptions>(),
                             It.IsAny<CancellationToken>()
                         )
-                    )      
+                    )
                     .Throws(new Exception());
 
                     cosmosClientMock
@@ -3882,6 +6397,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         (
                             It.IsAny<string>(),
                             It.IsAny<string>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
                         )
                     )
                     .Returns(containerMock.Object);
@@ -3902,8 +6441,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.DeleteAsync(id, key);
@@ -3947,13 +6486,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.DeleteAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.DeleteAsync)}";
 
                     var key = "1";
                     var id = "2";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -3984,7 +6523,7 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     stopwatchServiceMock
                     .SetupGet(stopwatchService => stopwatchService.ElapsedMilliseconds)
                     .Returns(expectedElapsedMilliseconds);
-                    
+
                     //-CosmosContainer
                     var cosmosClientMock = serviceProvider.GetMock<CosmosClient>();
                     var containerMock = serviceProvider.GetMock<Container>();
@@ -4013,6 +6552,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -4029,8 +6592,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.DeleteAsync(id, key);
@@ -4054,13 +6617,13 @@ namespace DickinsonBros.Cosmos.Tests.Models
                         coasterData = "abc"
                     };
 
-                    var methodIdentifier = $"{nameof(CosmosService)}.{nameof(CosmosService.DeleteAsync)}";
+                    var methodIdentifier = $"{nameof(CosmosService<SampleCosmosServiceOptions>)}.{nameof(CosmosService<SampleCosmosServiceOptions>.DeleteAsync)}";
 
                     var id = "1";
                     var key = "2";
                     var expectedDateTime = new System.DateTime(2020, 1, 1);
                     var expectedElapsedMilliseconds = (long)5000;
-                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService>>();
+                    var loggingServiceMock = serviceProvider.GetMock<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>();
                     var messageObserved = (string)null;
                     var propertiesObserved = (IDictionary<string, object>)null;
 
@@ -4129,6 +6692,30 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     )
                     .Returns(containerMock.Object);
 
+                    //--ICosmosFactory
+                    var cosmosFactoryMock = serviceProvider.GetMock<ICosmosFactory>();
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.CreateCosmosClient
+                        (
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(cosmosClientMock.Object);
+
+                    cosmosFactoryMock
+                    .Setup
+                    (
+                        cosmosFactory => cosmosFactory.GetContainer
+                        (
+                            It.IsAny<CosmosClient>(),
+                            It.IsAny<CosmosServiceOptions>()
+                        )
+                    )
+                    .Returns(containerMock.Object);
+
                     //-Telemetry
                     var telemetryServiceMock = serviceProvider.GetMock<ITelemetryService>();
                     var telemetryDataObserved = (TelemetryData)null;
@@ -4145,8 +6732,8 @@ namespace DickinsonBros.Cosmos.Tests.Models
                     });
 
                     //-UUT
-                    var uut = serviceProvider.GetRequiredService<ICosmosService>();
-                    var uutConcrete = (CosmosService)uut;
+                    var uut = serviceProvider.GetRequiredService<ICosmosService<SampleCosmosServiceOptions>>();
+                    var uutConcrete = (CosmosService<SampleCosmosServiceOptions>)uut;
 
                     //Act
                     await uut.DeleteAsync(id, key);
@@ -4181,15 +6768,16 @@ namespace DickinsonBros.Cosmos.Tests.Models
 
         private IServiceCollection ConfigureServices(IServiceCollection serviceCollection)
         {
-            serviceCollection.AddSingleton<ICosmosService, CosmosService>();
+           serviceCollection.AddSingleton<ICosmosService<SampleCosmosServiceOptions>, CosmosService<SampleCosmosServiceOptions>>();
             serviceCollection.AddSingleton(Mock.Of<Container>());
             serviceCollection.AddSingleton(Mock.Of<CosmosClient>());
             serviceCollection.AddSingleton(Mock.Of<ITelemetryService>());
+            serviceCollection.AddSingleton(Mock.Of<ICosmosFactory>());
             serviceCollection.AddSingleton(Mock.Of<IDateTimeService>());
-            serviceCollection.AddSingleton(Mock.Of<ILoggingService<CosmosService>>());
+            serviceCollection.AddSingleton(Mock.Of<ILoggingService<CosmosService<SampleCosmosServiceOptions>>>());
             serviceCollection.AddSingleton(Mock.Of<IStopwatchService>());
 
-            var cosmosServiceOptions = new CosmosServiceOptions
+            var cosmosServiceOptions = new SampleCosmosServiceOptions
             {
                 ConnectionString = "",
                 ContainerId = "",
@@ -4198,7 +6786,7 @@ namespace DickinsonBros.Cosmos.Tests.Models
                 PrimaryKey = ""
             };
             var options = Options.Create(cosmosServiceOptions);
-            serviceCollection.AddSingleton<IOptions<CosmosServiceOptions>>(options);
+            serviceCollection.AddSingleton<IOptions<SampleCosmosServiceOptions>>(options);
             return serviceCollection;
         }
         #endregion

@@ -11,6 +11,8 @@ namespace DickinsonBros.Cosmos.Tests.Extensions
     [TestClass]
     public class IServiceCollectionExtensionsTests
     {
+        class SampleCosmosServiceOptions : CosmosServiceOptions
+        { }
         [TestMethod]
         public void AddCosmosService_Should_Succeed()
         {
@@ -18,16 +20,16 @@ namespace DickinsonBros.Cosmos.Tests.Extensions
             var serviceCollection = new ServiceCollection();
 
             // Act
-            serviceCollection.AddCosmosService();
+            serviceCollection.AddCosmosService<SampleCosmosServiceOptions>();
 
             // Assert
 
-            Assert.IsTrue(serviceCollection.Any(serviceDefinition => serviceDefinition.ServiceType == typeof(ICosmosService) &&
-                                           serviceDefinition.ImplementationType == typeof(CosmosService) &&
+            Assert.IsTrue(serviceCollection.Any(serviceDefinition => serviceDefinition.ServiceType == typeof(ICosmosService<SampleCosmosServiceOptions>) &&
+                                           serviceDefinition.ImplementationType == typeof(CosmosService<SampleCosmosServiceOptions>) &&
                                            serviceDefinition.Lifetime == ServiceLifetime.Singleton));
 
-            Assert.IsTrue(serviceCollection.Any(serviceDefinition => serviceDefinition.ServiceType == typeof(IConfigureOptions<CosmosServiceOptions>) &&
-                                           serviceDefinition.ImplementationType == typeof(CosmosServiceOptionsConfigurator) &&
+            Assert.IsTrue(serviceCollection.Any(serviceDefinition => serviceDefinition.ServiceType == typeof(IConfigureOptions<SampleCosmosServiceOptions>) &&
+                                           serviceDefinition.ImplementationType == typeof(CosmosServiceOptionsConfigurator<SampleCosmosServiceOptions>) &&
                                            serviceDefinition.Lifetime == ServiceLifetime.Singleton));
         }
     }
